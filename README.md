@@ -114,17 +114,17 @@ http://127.0.0.1:8787/你的安全路径/
 systemd 服务名：
 
 ```bash
-aimili-nodepool.service
+nodepool.service
 ```
 
 常用命令：
 
 ```bash
-systemctl status aimili-nodepool.service
-systemctl restart aimili-nodepool.service
-systemctl stop aimili-nodepool.service
-systemctl enable aimili-nodepool.service
-journalctl -u aimili-nodepool.service -f
+systemctl status nodepool.service
+systemctl restart nodepool.service
+systemctl stop nodepool.service
+systemctl enable nodepool.service
+journalctl -u nodepool.service -f
 ```
 
 查看项目运行日志：
@@ -229,7 +229,7 @@ nodepool_data/logs/
 示例：修改 systemd 服务环境变量后重启服务。
 
 ```bash
-systemctl edit aimili-nodepool.service
+systemctl edit nodepool.service
 ```
 
 写入：
@@ -244,7 +244,7 @@ Environment=AUTO_TEST_ENABLED=false
 
 ```bash
 systemctl daemon-reload
-systemctl restart aimili-nodepool.service
+systemctl restart nodepool.service
 ```
 
 ## 目录结构
@@ -269,8 +269,8 @@ systemctl restart aimili-nodepool.service
 检查服务状态：
 
 ```bash
-systemctl status aimili-nodepool.service
-journalctl -u aimili-nodepool.service -n 100 --no-pager
+systemctl status nodepool.service
+journalctl -u nodepool.service -n 100 --no-pager
 ```
 
 检查端口是否监听：
@@ -324,7 +324,7 @@ modprobe tun
 可以在“代理设置”里配置节点镜像源地址，也可以查看日志：
 
 ```bash
-journalctl -u aimili-nodepool.service -f
+journalctl -u nodepool.service -f
 tail -f nodepool_data/nodepool.log
 ```
 
@@ -343,7 +343,7 @@ tail -f nodepool_data/nodepool.log
 ```bash
 cd /root/nodepool
 git pull
-systemctl restart aimili-nodepool.service
+systemctl restart nodepool.service
 ```
 
 如果部署目录不同，请替换路径。
@@ -353,8 +353,8 @@ systemctl restart aimili-nodepool.service
 停止并删除 systemd 服务：
 
 ```bash
-systemctl disable --now aimili-nodepool.service
-rm -f /etc/systemd/system/aimili-nodepool.service
+systemctl disable --now nodepool.service
+rm -f /etc/systemd/system/nodepool.service
 systemctl daemon-reload
 ```
 
