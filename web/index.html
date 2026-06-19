@@ -997,6 +997,12 @@
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h10M4 18h6" /></svg>
         <span>运行日志</span>
       </a>
+
+      <!-- Xray 入站管理 -->
+      <a href="javascript:void(0)" id="nav_xray" onclick="switchView('xray')" class="nav-item">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" /></svg>
+        <span>入站管理</span>
+      </a>
     </nav>
 
     
@@ -1385,6 +1391,158 @@
   </main>
 </div>
 
+<!-- Xray 入站管理 View -->
+<div id="view_xray" class="page-view" style="display:none;">
+
+  <!-- 状态卡片 -->
+  <div class="view-card" style="margin-bottom: 20px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <!-- 图标 -->
+        <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, rgba(0,122,255,0.18), rgba(88,86,214,0.18)); border: 1px solid rgba(0,122,255,0.25); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <svg style="width:22px; height:22px; color: #007AFF;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" /></svg>
+        </div>
+        <div>
+          <div style="font-size: 16px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+            Xray-core 入站服务
+            <span id="xray_status_badge" class="badge not_checked">未知</span>
+          </div>
+          <div id="xray_status_meta" style="font-size: 12px; color: var(--text-secondary); margin-top: 3px;">正在检查状态...</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button id="btn_xray_start" onclick="xrayStart()" class="btn-primary" style="height: 34px; padding: 0 16px; font-size: 13px; border-radius: 8px;">
+          <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          启动
+        </button>
+        <button id="btn_xray_stop" onclick="xrayStop()" style="height: 34px; padding: 0 16px; font-size: 13px; border-radius: 8px; border: 1px solid rgba(255,69,58,0.3); background: rgba(255,69,58,0.08); color: #ff453a; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,69,58,0.18)'" onmouseout="this.style.background='rgba(255,69,58,0.08)'">
+          <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+          停止
+        </button>
+        <button onclick="xrayReload()" style="height: 34px; padding: 0 14px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.04); color: var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+          <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
+          重载
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 入站列表 -->
+  <div class="view-card">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+      <h3 style="margin:0; font-size:16px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
+        <svg style="width:18px;height:18px; color:var(--primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7"/></svg>
+        入站列表
+      </h3>
+      <button onclick="showAddInboundModal()" class="btn-primary" style="height:34px; padding:0 14px; font-size:13px; border-radius:8px; display:inline-flex; align-items:center; gap:6px;">
+        <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        新建入站
+      </button>
+    </div>
+
+    <div id="xray_inbounds_list">
+      <div style="text-align:center; padding: 48px 0; color:var(--text-secondary);">
+        <svg style="width:36px;height:36px; opacity:0.3; margin-bottom:12px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
+        <div style="font-size:14px; margin-bottom:6px;">还没有入站配置</div>
+        <div style="font-size:12px; opacity:0.6;">点击「新建入站」添加 VLESS 或 Shadowsocks 节点</div>
+      </div>
+    </div>
+
+    <!-- 说明 -->
+    <div style="margin-top:16px; padding:12px 14px; background:rgba(0,122,255,0.05); border:1px solid rgba(0,122,255,0.15); border-radius:10px; font-size:12px; color:var(--text-secondary); line-height:1.6;">
+      💡 入站流量将通过 NodePool 的本地 SOCKS5 代理出网（即当前连接的 VPN Gate 节点）。用户连接上入站后，流量自动通过落地出网，无需额外配置。
+    </div>
+  </div>
+</div>
+
+<!-- 新建入站 Modal -->
+<div id="xray_add_modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:9000; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;">
+  <div style="background:#17181e; border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:28px; width:90%; max-width:460px; box-shadow:0 30px 60px rgba(0,0,0,0.5); box-sizing:border-box; transform:scale(0.94); transition:transform 0.25s cubic-bezier(0.34,1.56,0.64,1);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
+      <h3 style="margin:0; font-size:16px; font-weight:700; color:var(--text-primary);">&#43; 新建入站</h3>
+      <button onclick="closeAddInboundModal()" style="width:28px;height:28px;border-radius:50%;border:none;background:rgba(255,255,255,0.07);color:var(--text-secondary);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0;">&times;</button>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">备注名称</label>
+      <input type="text" id="xray_add_remark" class="input-field" placeholder="例如：我的 VLESS 节点">
+    </div>
+    <div class="form-group">
+      <label class="form-label">协议</label>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <div id="xray_proto_vless" class="option-card active" onclick="selectXrayProto('vless')">
+          <div class="option-card-title">VLESS</div>
+          <div class="option-card-desc">最新，推荐</div>
+        </div>
+        <div id="xray_proto_ss" class="option-card" onclick="selectXrayProto('shadowsocks')">
+          <div class="option-card-title">Shadowsocks</div>
+          <div class="option-card-desc">简单稳定</div>
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">传输方式</label>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <div id="xray_trans_tcp" class="option-card active" onclick="selectXrayTrans('tcp')">
+          <div class="option-card-title">TCP</div>
+          <div class="option-card-desc">直连，最简单</div>
+        </div>
+        <div id="xray_trans_ws" class="option-card" onclick="selectXrayTrans('ws')">
+          <div class="option-card-title">WebSocket</div>
+          <div class="option-card-desc">可套 CDN</div>
+        </div>
+      </div>
+    </div>
+    <div id="xray_ws_path_group" class="form-group" style="display:none;">
+      <label class="form-label">WebSocket 路径</label>
+      <input type="text" id="xray_add_ws_path" class="input-field" placeholder="留空自动生成">
+    </div>
+    <div id="xray_ss_fields" style="display:none;">
+      <div class="form-group">
+        <label class="form-label">加密方式</label>
+        <select id="xray_add_method" class="input-field" style="cursor:pointer;">
+          <option value="chacha20-ietf-poly1305">chacha20-ietf-poly1305 (推荐)</option>
+          <option value="aes-256-gcm">aes-256-gcm</option>
+          <option value="aes-128-gcm">aes-128-gcm</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">密码</label>
+        <input type="text" id="xray_add_ss_password" class="input-field" placeholder="留空自动生成" style="font-family:'JetBrains Mono',monospace;">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">监听端口</label>
+      <input type="number" id="xray_add_port" class="input-field" placeholder="留空自动分配" min="1024" max="65535">
+      <span class="form-hint">留空则自动分配一个未占用端口</span>
+    </div>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
+      <button onclick="closeAddInboundModal()" style="height:36px;padding:0 16px;border-radius:8px;border:1px solid var(--border-color);background:rgba(255,255,255,0.04);color:var(--text-secondary);cursor:pointer;font-size:13px;">取消</button>
+      <button onclick="submitAddInbound()" class="btn-primary" style="height:36px;padding:0 20px;border-radius:8px;font-size:13px;">创建入站</button>
+    </div>
+  </div>
+</div>
+
+<!-- 分享链接 Modal -->
+<div id="xray_share_modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:9000; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;">
+  <div style="background:#17181e; border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:28px; width:90%; max-width:520px; box-shadow:0 30px 60px rgba(0,0,0,0.5); box-sizing:border-box; transform:scale(0.94); transition:transform 0.25s cubic-bezier(0.34,1.56,0.64,1);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+      <h3 style="margin:0; font-size:16px; font-weight:700; color:var(--text-primary);">&#128279; 分享节点</h3>
+      <button onclick="closeShareModal()" style="width:28px;height:28px;border-radius:50%;border:none;background:rgba(255,255,255,0.07);color:var(--text-secondary);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0;">&times;</button>
+    </div>
+    <div style="font-size:12px; color:var(--text-secondary); margin-bottom:10px;">分享链接（可直接导入到客户端）</div>
+    <div style="background:#0a0c10; border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:14px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#a5b4fc; word-break:break-all; line-height:1.6; max-height:120px; overflow-y:auto; margin-bottom:16px;" id="xray_share_link_text">--</div>
+    <div style="display:flex; gap:8px;">
+      <button onclick="copyShareLink()" class="btn-primary" style="height:34px;padding:0 16px;border-radius:8px;font-size:13px;flex:1;">
+        <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10"/></svg>
+        复制链接
+      </button>
+      <button onclick="closeShareModal()" style="height:34px;padding:0 16px;border-radius:8px;font-size:13px;border:1px solid var(--border-color);background:rgba(255,255,255,0.04);color:var(--text-secondary);cursor:pointer;">关闭</button>
+    </div>
+  </div>
+</div>
+
 <!-- Custom Alert Modal -->
 <div id="custom_alert_modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); z-index: 10000; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s ease-out;">
   <div style="background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 18px; padding: 24px; max-width: 420px; width: 90%; box-shadow: var(--neumorphic-outset); transform: scale(0.9); transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); box-sizing: border-box; display: flex; flex-direction: column; gap: 16px;">
@@ -1542,9 +1700,266 @@ function switchView(viewId) {
   } else if (viewId === 'logs') {
     loadLogs();
     logsPollInterval = setInterval(loadLogs, 2500);
+  } else if (viewId === 'xray') {
+    loadXrayStatus();
+    loadXrayInbounds();
   }
 }
 
+// ════════════════════════════════════════════════════
+//  XRAY MANAGER
+// ════════════════════════════════════════════════════
+let _xrayProto = 'vless';
+let _xrayTrans = 'tcp';
+let _currentShareLink = '';
+
+async function loadXrayStatus() {
+  try {
+    const r = await fetch('/api/xray/status');
+    const d = await r.json();
+    const badge = $('xray_status_badge');
+    const meta  = $('xray_status_meta');
+    if (d.running) {
+      badge.textContent = '运行中'; badge.className = 'badge available';
+      const up = d.uptime_seconds;
+      const h = Math.floor(up/3600), m = Math.floor((up%3600)/60), s = up%60;
+      const uptimeStr = `${h>0?h+'h ':''} ${m>0?m+'m ':''} ${s}s`;
+      meta.textContent = `PID ${d.pid} · 已运行 ${uptimeStr.trim()} · Xray ${d.xray_version} · ${d.enabled_count} 个入站`;
+    } else {
+      badge.textContent = '已停止'; badge.className = 'badge unavailable';
+      meta.textContent = d.bin_exists ? `Xray ${d.xray_version} · 已停止` : 'Xray binary 不存在，请重新安装';
+    }
+  } catch(e) {
+    $('xray_status_badge').textContent = '连接失败'; $('xray_status_badge').className='badge unavailable';
+  }
+}
+
+async function loadXrayInbounds() {
+  try {
+    const r = await fetch('/api/xray/inbounds');
+    const d = await r.json();
+    renderXrayInbounds(d.inbounds || []);
+  } catch(e) {
+    $('xray_inbounds_list').innerHTML = '<div style="color:var(--danger);padding:20px;text-align:center;">加载失败</div>';
+  }
+}
+
+function renderXrayInbounds(list) {
+  const el = $('xray_inbounds_list');
+  if (!list.length) {
+    el.innerHTML = `<div style="text-align:center; padding:48px 0; color:var(--text-secondary);">
+      <svg style="width:36px;height:36px;opacity:0.3;margin-bottom:12px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
+      <div style="font-size:14px;margin-bottom:6px;">还没有入站配置</div>
+      <div style="font-size:12px;opacity:0.6;">点击「新建入站」添加 VLESS 或 Shadowsocks 节点</div>
+    </div>`;
+    return;
+  }
+
+  const rows = list.map(ib => {
+    const protoColor = ib.protocol === 'vless' ? 'rgba(0,122,255,0.15)' : 'rgba(52,199,89,0.12)';
+    const protoText  = ib.protocol === 'vless' ? '#64adff' : '#34c759';
+    const protoBorder= ib.protocol === 'vless' ? 'rgba(0,122,255,0.25)' : 'rgba(52,199,89,0.2)';
+    const enabled = ib.enabled !== false;
+    const transLabel = ib.transport === 'ws' ? 'WS' : 'TCP';
+    const secret = ib.protocol === 'vless'
+      ? `<span style="font-size:11px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;" title="UUID">${(ib.uuid||'').substring(0,16)}...</span>`
+      : `<span style="font-size:11px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;" title="Password">${(ib.password||'').substring(0,14)}...</span>`;
+    return `
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:rgba(255,255,255,${enabled?'0.03':'0.01'}); border:1px solid rgba(255,255,255,${enabled?'0.08':'0.04'}); border-radius:12px; margin-bottom:10px; gap:12px; flex-wrap:wrap; opacity:${enabled?1:0.55}; transition:opacity 0.2s;">
+      <div style="display:flex; align-items:center; gap:12px; flex:1; min-width:0;">
+        <div style="background:${protoColor};border:1px solid ${protoBorder};border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;color:${protoText};white-space:nowrap;">${ib.protocol.toUpperCase()}</div>
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:14px;font-weight:600;color:var(--text-primary);">${esc(ib.remark||'未命名')} <span style="font-size:11px;font-weight:400;color:var(--text-secondary);margin-left:4px;">${transLabel}</span></div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">端口 <strong style="color:var(--text-primary);">${ib.port}</strong> · ${secret}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+        <button onclick="xrayShare('${ib.id}')" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid rgba(0,122,255,0.3);background:rgba(0,122,255,0.08);color:#64adff;cursor:pointer;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;transition:all 0.2s;" onmouseover="this.style.background='rgba(0,122,255,0.18)'" onmouseout="this.style.background='rgba(0,122,255,0.08)'">
+          <svg style="width:12px;height:12px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+          分享
+        </button>
+        <button onclick="xrayToggle('${ib.id}')" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid ${enabled?'rgba(255,159,10,0.3)':'rgba(52,199,89,0.3)'};background:${enabled?'rgba(255,159,10,0.08)':'rgba(52,199,89,0.08)'};color:${enabled?'#ff9f0a':'#34c759'};cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;">${enabled?'禁用':'启用'}</button>
+        <button onclick="xrayDelete('${ib.id}','${esc(ib.remark||'此入站')}')" style="height:30px;padding:0 10px;border-radius:7px;border:1px solid rgba(255,69,58,0.25);background:rgba(255,69,58,0.07);color:#ff453a;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;transition:all 0.2s;">
+          <svg style="width:13px;height:13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML = rows;
+}
+
+async function xrayStart() {
+  $('btn_xray_start').disabled = true;
+  try {
+    const r = await fetch('/api/xray/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const d = await r.json();
+    if (d.ok) { await loadXrayStatus(); await loadXrayInbounds(); }
+    else alert('启动失败: ' + d.error);
+  } finally { $('btn_xray_start').disabled = false; }
+}
+
+async function xrayStop() {
+  $('btn_xray_stop').disabled = true;
+  try {
+    const r = await fetch('/api/xray/stop', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const d = await r.json();
+    await loadXrayStatus();
+    if (!d.ok) alert('停止失败: ' + d.error);
+  } finally { $('btn_xray_stop').disabled = false; }
+}
+
+async function xrayReload() {
+  try {
+    const r = await fetch('/api/xray/reload', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const d = await r.json();
+    await loadXrayStatus();
+    if (!d.ok) alert('重载失败: ' + d.error);
+  } catch(e) { alert('重载请求失败'); }
+}
+
+async function xrayDelete(id, name) {
+  if (!confirm(`确认删除入站「${name}」？\n该操作不可撤销。`)) return;
+  try {
+    const r = await fetch('/api/xray/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
+    const d = await r.json();
+    if (d.ok) { await loadXrayInbounds(); await loadXrayStatus(); }
+    else alert('删除失败: ' + d.error);
+  } catch(e) { alert('请求失败'); }
+}
+
+async function xrayToggle(id) {
+  try {
+    const r = await fetch('/api/xray/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
+    const d = await r.json();
+    if (d.ok) { await loadXrayInbounds(); await loadXrayStatus(); }
+    else alert('操作失败: ' + d.error);
+  } catch(e) { alert('请求失败'); }
+}
+
+async function xrayShare(id) {
+  try {
+    const r = await fetch(`/api/xray/share/${id}`);
+    const d = await r.json();
+    if (d.ok) {
+      _currentShareLink = d.link;
+      $('xray_share_link_text').textContent = d.link;
+      showModal('xray_share_modal');
+    } else {
+      alert('获取分享链接失败: ' + d.error);
+    }
+  } catch(e) { alert('请求失败'); }
+}
+
+function copyShareLink() {
+  if (!_currentShareLink) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(_currentShareLink).then(() => alert('已复制链接！'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = _currentShareLink;
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    alert('已复制链接！');
+  }
+}
+
+function selectXrayProto(proto) {
+  _xrayProto = proto;
+  ['vless','ss'].forEach(p => {
+    const el = $(`xray_proto_${p}`);
+    if (el) el.classList.toggle('active', p === proto || (proto==='shadowsocks'&&p==='ss'));
+  });
+  // Show/hide SS-specific fields
+  const ssFields = $('xray_ss_fields');
+  if (ssFields) ssFields.style.display = proto === 'shadowsocks' ? '' : 'none';
+  // WS not supported in SS natively (disable ws option for ss)
+}
+
+function selectXrayTrans(trans) {
+  _xrayTrans = trans;
+  ['tcp','ws'].forEach(t => {
+    const el = $(`xray_trans_${t}`);
+    if (el) el.classList.toggle('active', t === trans);
+  });
+  const wsGroup = $('xray_ws_path_group');
+  if (wsGroup) wsGroup.style.display = trans === 'ws' ? '' : 'none';
+}
+
+function showAddInboundModal() {
+  // Reset form
+  _xrayProto = 'vless'; _xrayTrans = 'tcp';
+  ['xray_add_remark','xray_add_ws_path','xray_add_ss_password','xray_add_port'].forEach(id => {
+    const el = $(id); if(el) el.value = '';
+  });
+  selectXrayProto('vless'); selectXrayTrans('tcp');
+  showModal('xray_add_modal');
+}
+
+function closeAddInboundModal() { hideModal('xray_add_modal'); }
+function closeShareModal() { hideModal('xray_share_modal'); }
+
+async function submitAddInbound() {
+  const remark   = ($('xray_add_remark').value || '').trim();
+  const port     = parseInt($('xray_add_port').value) || null;
+  const wsPath   = ($('xray_add_ws_path') ? $('xray_add_ws_path').value : '').trim();
+  const password = ($('xray_add_ss_password') ? $('xray_add_ss_password').value : '').trim();
+  const method   = ($('xray_add_method') ? $('xray_add_method').value : 'chacha20-ietf-poly1305');
+
+  const body = { protocol: _xrayProto, transport: _xrayTrans, remark, port, ws_path: wsPath, password, method };
+
+  try {
+    const r = await fetch('/api/xray/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const d = await r.json();
+    if (d.ok) {
+      closeAddInboundModal();
+      await loadXrayInbounds();
+      await loadXrayStatus();
+      // Auto-start if not running
+      const statusR = await fetch('/api/xray/status');
+      const statusD = await statusR.json();
+      if (!statusD.running) {
+        await fetch('/api/xray/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+        await loadXrayStatus();
+      }
+    } else {
+      alert('创建失败: ' + d.error);
+    }
+  } catch(e) { alert('请求失败: ' + e.message); }
+}
+
+function showModal(id) {
+  const el = $(id); if (!el) return;
+  el.style.display = 'flex';
+  el.offsetHeight;
+  el.style.opacity = '1';
+  const inner = el.querySelector('div');
+  if (inner) inner.style.transform = 'scale(1)';
+}
+
+function hideModal(id) {
+  const el = $(id); if (!el) return;
+  el.style.opacity = '0';
+  const inner = el.querySelector('div');
+  if (inner) inner.style.transform = 'scale(0.94)';
+  setTimeout(() => { el.style.display = 'none'; }, 220);
+}
+
+// Close modals on backdrop click
+['xray_add_modal','xray_share_modal'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('click', e => {
+    if (e.target === el) hideModal(id);
+  });
+});
+// Keyboard ESC closes modals
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    ['xray_add_modal','xray_share_modal'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.style.display !== 'none') hideModal(id);
+    });
+  }
+});
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));

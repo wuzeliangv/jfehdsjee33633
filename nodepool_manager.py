@@ -76,6 +76,7 @@ class DualStackHTTPServer(ThreadingHTTPServer):
 
 import nodepool_utils
 import proxy_server
+import xray_manager
 
 def env_int(name: str, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
     raw = os.environ.get(name)
@@ -2549,6 +2550,16 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f"[API Logs] Error reading log file: {e}", flush=True)
             self.send_json({"logs": entries})
+        elif effective_path == "/api/xray/status":
+            self.send_json(xray_manager.get_xray_status())
+        elif effective_path == "/api/xray/inbounds":
+            self.send_json({"ok": True, "inbounds": xray_manager.load_inbounds()})
+        elif effective_path.startswith("/api/xray/share/"):
+            inbound_id = effective_path.split("/api/xray/share/", 1)[-1]
+            # Detect server IP from request host header
+            host_header = self.headers.get("Host", "")
+            server_ip = host_header.split(":")[0] if host_header else "127.0.0.1"
+            self.send_json(xray_manager.get_share_link(inbound_id, server_ip))
         else:
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
@@ -2952,6 +2963,74 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(result)
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        # ── Xray API ──────────────────────────────────────────────────────────
+        elif effective_path == "/api/xray/start":
+            try:
+                self.read_request_body()
+                result = xray_manager.start_xray(LOCAL_PROXY_PORT)
+                self.send_json(result)
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        elif effective_path == "/api/xray/stop":
+            try:
+                self.read_request_body()
+                result = xray_manager.stop_xray()
+                self.send_json(result)
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        elif effective_path == "/api/xray/reload":
+            try:
+                self.read_request_body()
+                result = xray_manager.reload_xray(LOCAL_PROXY_PORT)
+                self.send_json(result)
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        elif effective_path == "/api/xray/add":
+            try:
+                body = self.read_json_body()
+                protocol  = body.get("protocol", "vless")
+                port      = body.get("port") or None
+                transport = body.get("transport", "tcp")
+                remark    = body.get("remark", "")
+                ws_path   = body.get("ws_path", "")
+                password  = body.get("password", "")
+                method    = body.get("method", "chacha20-ietf-poly1305")
+                result = xray_manager.add_inbound(
+                    protocol=protocol,
+                    port=int(port) if port else None,
+                    transport=transport,
+                    remark=remark,
+                    ws_path=ws_path,
+                    password=password,
+                    method=method
+                )
+                if result.get("ok"):
+                    # Auto-reload xray if running
+                    if xray_manager.is_xray_running():
+                        xray_manager.reload_xray(LOCAL_PROXY_PORT)
+                self.send_json(result)
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        elif effective_path == "/api/xray/delete":
+            try:
+                body = self.read_json_body()
+                inbound_id = body.get("id", "")
+                result = xray_manager.delete_inbound(inbound_id)
+                if result.get("ok") and xray_manager.is_xray_running():
+                    xray_manager.reload_xray(LOCAL_PROXY_PORT)
+                self.send_json(result)
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        elif effective_path == "/api/xray/toggle":
+            try:
+                body = self.read_json_body()
+                inbound_id = body.get("id", "")
+                result = xray_manager.toggle_inbound(inbound_id)
+                if result.get("ok") and xray_manager.is_xray_running():
+                    xray_manager.reload_xray(LOCAL_PROXY_PORT)
+                self.send_json(result)
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         else:
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
@@ -3072,6 +3151,20 @@ def main() -> None:
     threading.Thread(target=collector_loop, daemon=True).start()
     threading.Thread(target=background_proxy_checker, daemon=True).start()
     threading.Thread(target=active_node_pinger, daemon=True).start()
+
+    # Auto-start Xray if inbounds are configured
+    def _xray_autostart():
+        time.sleep(5)  # Wait for proxy to be ready
+        inbounds = xray_manager.load_inbounds()
+        enabled = [i for i in inbounds if i.get("enabled", True)]
+        if enabled:
+            print(f"[Xray] 检测到 {len(enabled)} 个已启用入站，自动启动 Xray-core...", flush=True)
+            result = xray_manager.start_xray(LOCAL_PROXY_PORT)
+            if result.get("ok"):
+                print(f"[Xray] 自动启动成功 PID={result.get('pid')}", flush=True)
+            else:
+                print(f"[Xray] 自动启动失败: {result.get('error')}", flush=True)
+    threading.Thread(target=_xray_autostart, daemon=True).start()
     
     ui_cfg = load_ui_config()
     ui_host = ui_cfg.get("host", UI_HOST)
