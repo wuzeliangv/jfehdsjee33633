@@ -71,14 +71,7 @@ unset GITHUB_TOKEN
 默认安装目录是：
 
 ```bash
-/root/aimili-vpngate
-```
-
-如需指定安装目录：
-
-```bash
-INSTALL_DIR="/opt/personal-nodepool-gateway" \
-bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/personal-nodepool-gateway/main/install.sh)
+/root/nodepool
 ```
 
 如需从自己的 fork 安装：
@@ -94,12 +87,12 @@ bash <(curl -fsSL https://raw.githubusercontent.com/你的用户名/你的仓库
 
 ```bash
 cd /root
-git clone https://github.com/vzzoxo/personal-nodepool-gateway.git aimili-vpngate
-cd /root/aimili-vpngate
+git clone https://github.com/vzzoxo/personal-nodepool-gateway.git nodepool
+cd /root/nodepool
 bash install.sh
 ```
 
-如果项目目录不是 `/root/aimili-vpngate`，请在项目目录内执行 `install.sh`。脚本会根据当前目录生成 systemd 服务。
+远程一键脚本固定安装到 `/root/nodepool`。如果在已经克隆好的项目目录内手动执行 `bash install.sh`，脚本会使用当前项目目录生成 systemd 服务，方便本地开发和迁移。
 
 ## 访问后台
 
@@ -151,7 +144,7 @@ journalctl -u aimili-nodepool.service -f
 查看项目运行日志：
 
 ```bash
-tail -f /root/aimili-vpngate/nodepool_data/nodepool.log
+tail -f /root/nodepool/nodepool_data/nodepool.log
 ```
 
 如果你的实际部署目录不同，请替换为自己的项目路径。
@@ -362,7 +355,7 @@ tail -f nodepool_data/nodepool.log
 ## 更新项目
 
 ```bash
-cd /root/aimili-vpngate
+cd /root/nodepool
 git pull
 systemctl restart aimili-nodepool.service
 ```
@@ -382,7 +375,7 @@ systemctl daemon-reload
 删除项目目录：
 
 ```bash
-rm -rf /root/aimili-vpngate
+rm -rf /root/nodepool
 ```
 
 删除前请确认是否需要备份 `nodepool_data/`。

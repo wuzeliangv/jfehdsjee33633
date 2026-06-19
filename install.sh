@@ -3,7 +3,7 @@ set -euo pipefail
 
 DEFAULT_REPO_URL="https://github.com/vzzoxo/personal-nodepool-gateway.git"
 REPO_URL="${REPO_URL:-${DEFAULT_REPO_URL}}"
-PROJECT_DIR="${INSTALL_DIR:-/root/aimili-vpngate}"
+PROJECT_DIR="/root/nodepool"
 SERVICE_FILE="/etc/systemd/system/aimili-nodepool.service"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -26,7 +26,7 @@ elif [ -d "${PROJECT_DIR}/.git" ]; then
   run_git -C "${PROJECT_DIR}" pull --ff-only
 elif [ -e "${PROJECT_DIR}" ] && [ ! -d "${PROJECT_DIR}/.git" ]; then
   echo "安装目录已存在但不是 Git 仓库: ${PROJECT_DIR}"
-  echo "请设置 INSTALL_DIR 指向空目录，或手动处理该目录。"
+  echo "请手动处理该目录后重新安装。"
   exit 1
 else
   command -v git >/dev/null 2>&1 || {
