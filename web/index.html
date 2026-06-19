@@ -1105,30 +1105,20 @@
         </div>
 
         <div style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 16px; margin-bottom: 20px;">
-          <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none; margin-bottom: 16px;">
-            <input type="checkbox" id="cred_tg_enabled" style="margin-top: 3px; cursor: pointer;" onchange="toggleTgFields()" />
-            <div style="display: flex; flex-direction: column; gap: 2px;">
-              <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">启用 Telegram 通知</span>
-              <span style="font-size: 12px; color: var(--text-secondary);">开启后，系统在节点连接成功、连接断开或故障自动切换时，会通过 Telegram Bot 发送实时通知。</span>
-            </div>
-          </label>
-
-          <div id="tg_config_fields" style="display: none; flex-direction: column; gap: 12px; padding-left: 24px; margin-bottom: 8px;">
-            <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label" for="cred_tg_bot_token">TG Bot Token</label>
-              <input type="text" id="cred_tg_bot_token" class="input-field" placeholder="例如：123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label" for="cred_tg_chat_id">TG Chat ID</label>
-              <input type="text" id="cred_tg_chat_id" class="input-field" placeholder="例如：987654321 或 -100123456789" style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">
-            </div>
-            <div style="display: flex; gap: 12px; align-items: center; margin-top: 4px;">
-              <button type="button" onclick="testTgNotification()" class="btn-secondary" style="height: 32px; padding: 0 12px; font-size: 12px; font-weight: 500; border-radius: 6px; display: flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-primary); cursor: pointer;">
-                <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; color: var(--primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                发送测试消息
-              </button>
-              <span id="tg_test_result" style="font-size: 12px;"></span>
-            </div>
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="cred_tg_bot_token">Telegram Bot Token (用于推送通知，留空代表禁用)</label>
+            <input type="text" id="cred_tg_bot_token" class="input-field" placeholder="例如：123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+          </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" for="cred_tg_chat_id">Telegram Chat ID (您的个人或群组 TG ID)</label>
+            <input type="text" id="cred_tg_chat_id" class="input-field" placeholder="例如：987654321 或 -100123456789" style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button type="button" onclick="testTgNotification()" class="btn-secondary" style="height: 32px; padding: 0 12px; font-size: 12px; font-weight: 500; border-radius: 6px; display: flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-primary); cursor: pointer;">
+              <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; color: var(--primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+              发送测试消息
+            </button>
+            <span id="tg_test_result" style="font-size: 12px;"></span>
           </div>
         </div>
         
@@ -1471,10 +1461,8 @@ function switchView(viewId) {
       $("cred_password").value = "";
       $("cred_port").value = state.port || 8787;
       $("cred_suffix").value = state.secret_path || "";
-      $("cred_tg_enabled").checked = state.tg_enabled || false;
       $("cred_tg_bot_token").value = state.tg_bot_token || "";
       $("cred_tg_chat_id").value = state.tg_chat_id || "";
-      toggleTgFields();
     }
   } else if (viewId === 'network') {
     $("network_error").style.display = "none";
@@ -2472,9 +2460,9 @@ async function saveCredentials(e) {
     return;
   }
   
-  const tgEnabled = $("cred_tg_enabled").checked;
   const tgBotToken = $("cred_tg_bot_token").value.trim();
   const tgChatId = $("cred_tg_chat_id").value.trim();
+  const tgEnabled = !!(tgBotToken && tgChatId);
   
   if (state && port === state.proxy_port) {
     errorDivEl.textContent = "网页管理端口不能与代理出站端口相同";
