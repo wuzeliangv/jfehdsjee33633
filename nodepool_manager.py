@@ -2627,6 +2627,9 @@ class Handler(BaseHTTPRequestHandler):
                 new_password = str(payload.get("password") or "").strip()
                 new_port = payload.get("port")
                 new_suffix = str(payload.get("secret_path") or "").strip()
+                tg_enabled = bool(payload.get("tg_enabled", False))
+                tg_bot_token = str(payload.get("tg_bot_token") or "").strip()
+                tg_chat_id = str(payload.get("tg_chat_id") or "").strip()
                 
                 ui_cfg = load_ui_config()
                 if not new_username or (not new_password and not ui_cfg.get("password")):
@@ -2655,6 +2658,9 @@ class Handler(BaseHTTPRequestHandler):
                     ui_cfg["password"] = new_password
                 ui_cfg["port"] = new_port_int
                 ui_cfg["secret_path"] = new_suffix
+                ui_cfg["tg_enabled"] = tg_enabled
+                ui_cfg["tg_bot_token"] = tg_bot_token
+                ui_cfg["tg_chat_id"] = tg_chat_id
                 
                 auth_file = DATA_DIR / "ui_auth.json"
                 reauth_required = new_username != expected_username or (new_password and new_password != expected_password)
