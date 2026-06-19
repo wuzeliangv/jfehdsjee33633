@@ -1198,6 +1198,16 @@
             💡 填写代理后，拉取节点时将使用此 SOCKS5 代理（支持带有账号密码的 <code>socks5://user:pass@ip:port</code> 格式），留空则默认使用本机直连拉取。
           </div>
         </div>
+
+        <div style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 16px; margin-bottom: 16px;">
+          <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="net_auto_failover" style="margin-top: 3px; cursor: pointer;" checked />
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">启用故障自动切换（漂移）</span>
+              <span style="font-size: 12px; color: var(--text-secondary);">勾选后，当当前节点失效或网络断开时，系统会自动切换到其他最优节点；若取消勾选，系统在发现节点连通失败时将直接关闭连接，不会自动更换 IP。</span>
+            </div>
+          </label>
+        </div>
         
         <div style="display: flex; gap: 12px; justify-content: flex-end;">
           <button type="submit" id="network_submit_btn" class="btn-primary" style="height: 40px; padding: 0 20px; font-weight: 600; border-radius: 8px;">保存修改</button>
@@ -1302,7 +1312,85 @@
   </main>
 </div>
 
+<!-- Custom Alert Modal -->
+<div id="custom_alert_modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); z-index: 10000; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s ease-out;">
+  <div style="background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 18px; padding: 24px; max-width: 420px; width: 90%; box-shadow: var(--neumorphic-outset); transform: scale(0.9); transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); box-sizing: border-box; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div id="custom_alert_icon_wrapper" style="width: 40px; height: 40px; border-radius: 10px; background: rgba(0, 122, 255, 0.1); border: 1px solid rgba(0, 122, 255, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg id="custom_alert_icon" xmlns="http://www.w3.org/2000/svg" style="width: 20px; height: 20px; color: var(--primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <h4 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text-primary);">提示信息</h4>
+    </div>
+    <div id="custom_alert_message" style="font-size: 14px; color: var(--text-secondary); line-height: 1.5; word-break: break-all; max-height: 250px; overflow-y: auto;">
+      提示内容
+    </div>
+    <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+      <button id="custom_alert_btn" class="btn-primary" style="height: 38px; min-width: 80px; font-weight: 600; border-radius: 10px; background: var(--primary-gradient); border: none; color: white;">确定</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// 重写系统默认弹窗 alert
+window.alert = function(msg) {
+  const modal = $("custom_alert_modal");
+  const iconWrapper = $("custom_alert_icon_wrapper");
+  const icon = $("custom_alert_icon");
+  const title = modal.querySelector("h4");
+  const messageEl = $("custom_alert_message");
+  const btn = $("custom_alert_btn");
+  
+  messageEl.textContent = msg;
+  
+  const isErr = /失败|错误|err|fail|warn|警告|⚠️/i.test(msg);
+  const isSuccess = /成功|success|已复制|完成/.test(msg);
+  
+  if (isErr) {
+    title.textContent = "操作提示";
+    iconWrapper.style.background = "rgba(255, 69, 58, 0.12)";
+    iconWrapper.style.borderColor = "rgba(255, 69, 58, 0.25)";
+    icon.style.color = "var(--danger)";
+    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />';
+  } else if (isSuccess) {
+    title.textContent = "成功提示";
+    iconWrapper.style.background = "rgba(52, 199, 89, 0.12)";
+    iconWrapper.style.borderColor = "rgba(52, 199, 89, 0.25)";
+    icon.style.color = "var(--success)";
+    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />';
+  } else {
+    title.textContent = "提示信息";
+    iconWrapper.style.background = "rgba(0, 122, 255, 0.12)";
+    iconWrapper.style.borderColor = "rgba(0, 122, 255, 0.25)";
+    icon.style.color = "var(--primary)";
+    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />';
+  }
+  
+  modal.style.display = "flex";
+  modal.offsetHeight; // Force reflow
+  modal.style.opacity = "1";
+  modal.querySelector("div").style.transform = "scale(1)";
+  
+  const closeModal = () => {
+    modal.style.opacity = "0";
+    modal.querySelector("div").style.transform = "scale(0.9)";
+    setTimeout(() => {
+      modal.style.display = "none";
+    }, 200);
+  };
+  
+  btn.onclick = closeModal;
+  
+  const keyHandler = (e) => {
+    if (e.key === "Enter" || e.key === "Escape") {
+      closeModal();
+      document.removeEventListener("keydown", keyHandler);
+    }
+  };
+  document.addEventListener("keydown", keyHandler);
+};
+
 let nodes=[], state={}, testingNodeIds = new Set();
 let currentPage = 1;
 const pageSize = 99999;
@@ -1369,6 +1457,8 @@ function switchView(viewId) {
       $("net_api_url").value = (state.api_url && state.api_url !== defaultUrl) ? state.api_url : "";
       // 填充socks5代理
       $("net_socks5_proxy").value = state.socks5_proxy || "";
+      // 填充是否开启故障自动切换
+      $("net_auto_failover").checked = (state.auto_failover !== undefined) ? state.auto_failover : true;
     }
     populateRoutingCountries();
   } else if (viewId === 'gateway') {
@@ -2454,7 +2544,8 @@ async function saveNetwork(e) {
         force_country: forceCountry,
         routing_ip_type: routingIpType,
         api_url: $("net_api_url").value.trim() || "",
-        socks5_proxy: $("net_socks5_proxy").value.trim() || ""
+        socks5_proxy: $("net_socks5_proxy").value.trim() || "",
+        auto_failover: $("net_auto_failover").checked
       })
     });
     
@@ -2629,18 +2720,33 @@ function copyLogContent() {
     return;
   }
   
-  navigator.clipboard.writeText(text).then(() => {
-    alert("日志内容已成功复制到剪贴板！");
-  }).catch(err => {
-    console.error("复制失败", err);
+  const fallbackCopy = (txt) => {
     const ta = document.createElement("textarea");
-    ta.value = text;
+    ta.value = txt;
+    ta.style.position = "absolute";
+    ta.style.left = "-9999px";
     document.body.appendChild(ta);
     ta.select();
-    document.execCommand("copy");
+    try {
+      document.execCommand("copy");
+      alert("日志内容已复制到剪贴板！");
+    } catch (err) {
+      console.error("Fallback copy failed", err);
+      alert("复制失败，您的浏览器不支持或已禁用剪贴板访问。");
+    }
     document.body.removeChild(ta);
-    alert("日志内容已复制到剪贴板！");
-  });
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert("日志内容已成功复制到剪贴板！");
+    }).catch(err => {
+      console.error("Clipboard API copy failed, using fallback", err);
+      fallbackCopy(text);
+    });
+  } else {
+    fallbackCopy(text);
+  }
 }
 
 function exportLogContent() {

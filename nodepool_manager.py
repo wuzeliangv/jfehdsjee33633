@@ -278,7 +278,8 @@ def load_ui_config() -> dict[str, Any]:
             "favorite_node_ids": [],
             "fav_fail_fallback": True,
             "api_url": "https://www.vpngate.net/api/iphone/",
-            "socks5_proxy": ""
+            "socks5_proxy": "",
+            "auto_failover": True
         }
         updated = False
         if auth_file.exists():
@@ -286,7 +287,7 @@ def load_ui_config() -> dict[str, Any]:
                 data = json.loads(auth_file.read_text(encoding="utf-8"))
                 for key, val in data.items():
                     config[key] = val
-                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "api_url", "socks5_proxy"]:
+                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "api_url", "socks5_proxy", "auto_failover"]:
                     if key not in data:
                         updated = True
             except Exception:
@@ -454,6 +455,7 @@ def get_state() -> dict[str, Any]:
     state["fixed_node_id"] = ui_cfg.get("fixed_node_id", "")
     state["favorite_node_ids"] = ui_cfg.get("favorite_node_ids", [])
     state["fav_fail_fallback"] = ui_cfg.get("fav_fail_fallback", True)
+    state["auto_failover"] = ui_cfg.get("auto_failover", True)
     
     return state
 
@@ -1180,21 +1182,21 @@ def run_openvpn_until_ready(config_file: str, keep_alive: bool, route_nopull: bo
 
     tested_speed = 0
     if ok and not keep_alive:
-        # Perform lightweight speed test (download 200KB from Cloudflare CDN)
+        # Perform lightweight speed test (download 1MB from Cloudflare CDN)
         try:
             # Wait a moment for interface routing to stabilize
             time.sleep(0.5)
-            url = "http://speed.cloudflare.com/__down?bytes=200000"
+            url = "http://speed.cloudflare.com/__down?bytes=1000000"
             cmd = [
                 "curl",
                 "--interface", dev,
-                "--max-time", "2.0",
+                "--max-time", "3.0",
                 "-o", "/dev/null",
                 "-w", "%{speed_download}",
                 "-s",
                 url
             ]
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=3.0)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=4.0)
             if res.returncode == 0:
                 speed_bytes_sec = float(res.stdout.strip())
                 tested_speed = int(speed_bytes_sec * 8)
@@ -1539,6 +1541,15 @@ def auto_switch_node(attempt: int = 0) -> None:
             and not n.get("active")
         ]
         
+        is_fallback_untested = False
+        if not candidates:
+            candidates = [
+                n for n in nodes 
+                if n.get("probe_status") == "not_checked" 
+                and not n.get("active")
+            ]
+            is_fallback_untested = True
+            
         if routing_mode == "fixed_region" and target_country:
             candidates = [
                 n for n in candidates 
@@ -1562,7 +1573,10 @@ def auto_switch_node(attempt: int = 0) -> None:
         elif routing_ip_type == "hosting":
             candidates = [n for n in candidates if n.get("ip_type") == "hosting"]
             
-        candidates.sort(key=lambda n: (parse_int(n.get("latency_ms")) or 999999, -parse_int(n.get("score"))))
+        if is_fallback_untested:
+            candidates.sort(key=lambda n: (-parse_int(n.get("score")), parse_int(n.get("ping")) or 999999))
+        else:
+            candidates.sort(key=lambda n: (parse_int(n.get("latency_ms")) or 999999, -parse_int(n.get("score"))))
         
     if candidates:
         next_node = candidates[0]
@@ -1762,9 +1776,20 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                             has_active_id = True
                             stop_active_openvpn()
                     if has_active_id:
-                        print("[维护线程] 检测到当前 OpenVPN 进程已意外退出，准备自动切换节点", flush=True)
+                        print("[维护线程] 检测到当前 OpenVPN 进程已意外退出", flush=True)
                         is_connecting = False
-                        auto_switch_node()
+                        auto_failover = ui_cfg.get("auto_failover", True)
+                        if not auto_failover:
+                            print("[维护线程] 检测到已禁用故障自动切换，清理当前连接...", flush=True)
+                            with lock:
+                                nodes = read_nodes()
+                                for item in nodes:
+                                    item["active"] = False
+                                write_json(NODES_FILE, nodes)
+                            set_state(active_openvpn_node_id="", last_check_message="连接已断开（检测到节点意外退出且已禁用故障自动漂移）")
+                        else:
+                            print("[维护线程] 准备自动切换节点...", flush=True)
+                            auto_switch_node()
                         is_connecting = True
 
         auto_test_enabled = os.environ.get("AUTO_TEST_ENABLED", "false").lower() == "true"
@@ -1818,6 +1843,46 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                         pass
                         
             write_json(NODES_FILE, merged)
+
+        if auto_test_enabled:
+            ui_cfg = load_ui_config()
+            routing_mode = ui_cfg.get("routing_mode", "auto")
+            target_country = ui_cfg.get("force_country", "")
+
+            untested = [n for n in merged if n.get("probe_status") == "not_checked" and not n.get("active")]
+            to_test_ids = []
+            
+            if routing_mode == "fixed_region" and target_country:
+                # Filter untested nodes of the targeted country/region
+                country_untested = [
+                    n for n in untested
+                    if n.get("country") == target_country 
+                    or nodepool_utils.COUNTRY_TRANSLATIONS.get(n.get("country", ""), n.get("country", "")) == target_country
+                ]
+                # Test all untested nodes of this country (up to 30 nodes to avoid overload)
+                to_test_ids = [n["id"] for n in country_untested[:30]]
+                msg = f"已开启固定地区模式【{target_country}】，正在后台测试该国家的所有待检测节点 (共 {len(to_test_ids)} 个)..."
+            elif routing_mode == "favorites":
+                # Prioritize testing favorite nodes
+                fav_ids = set(ui_cfg.get("favorite_node_ids", []))
+                fav_untested = [n for n in untested if n["id"] in fav_ids]
+                other_untested = [n for n in untested if n["id"] not in fav_ids]
+                to_test_ids = [n["id"] for n in (fav_untested + other_untested)[:15]]
+                msg = f"已开启收藏节点模式，优先在后台测试收藏的待检测节点 (共 {len(to_test_ids)} 个)..."
+            else:
+                # Auto mode: test top 15 nodes
+                to_test_ids = [n["id"] for n in untested[:15]]
+                msg = f"自动路由模式，正在后台测试排在前列的待检测节点 (共 {len(to_test_ids)} 个)..."
+
+            if to_test_ids:
+                print(f"[维护线程] {msg}", flush=True)
+                log_to_json("INFO", "Main", msg)
+                try:
+                    test_multiple_nodes(to_test_ids)
+                    merged = read_nodes()
+                except Exception as test_exc:
+                    print(f"[维护线程] 后台自动测速发生错误: {test_exc}", flush=True)
+                    log_to_json("ERROR", "Main", f"后台自动测速发生错误: {test_exc}")
 
         # Update last check/fetch state and complete
         valid_nodes_count = len([n for n in merged if n.get("probe_status") == "available"])
@@ -2043,14 +2108,25 @@ def background_proxy_checker() -> None:
                     ui_cfg = load_ui_config()
                     routing_mode = ui_cfg.get("routing_mode", "auto")
                     if routing_mode != "fixed_ip":
-                        with lock:
-                            nodes = read_nodes()
-                            active_node = next((n for n in nodes if n.get("id") == active_openvpn_node_id), None)
-                            if active_node:
-                                mark_blacklisted(active_node, f"代理连通性检测失败: {error_msg}")
-                                active_node["probe_status"] = "unavailable"
+                        auto_failover = ui_cfg.get("auto_failover", True)
+                        if not auto_failover:
+                            print(f"[代理守护线程] 代理连通性检测失败，且已禁用故障自动漂移，清理当前连接并断开: {active_openvpn_node_id}", flush=True)
+                            stop_active_openvpn()
+                            with lock:
+                                nodes = read_nodes()
+                                for item in nodes:
+                                    item["active"] = False
                                 write_json(NODES_FILE, nodes)
-                        auto_switch_node()
+                            set_state(active_openvpn_node_id="", last_check_message="连接已断开（检测到连接失效且已禁用故障自动漂移）")
+                        else:
+                            with lock:
+                                nodes = read_nodes()
+                                active_node = next((n for n in nodes if n.get("id") == active_openvpn_node_id), None)
+                                if active_node:
+                                    mark_blacklisted(active_node, f"代理连通性检测失败: {error_msg}")
+                                    active_node["probe_status"] = "unavailable"
+                                    write_json(NODES_FILE, nodes)
+                            auto_switch_node()
                     else:
                         print(f"[代理守护线程] 固定 IP 模式下代理不可用，正在尝试重启连接同一节点: {active_openvpn_node_id}", flush=True)
                         is_connecting = False
@@ -2514,6 +2590,7 @@ class Handler(BaseHTTPRequestHandler):
                 routing_ip_type = str(payload.get("routing_ip_type") or "all").strip()
                 new_api_url = str(payload.get("api_url") or "").strip()
                 new_socks5_proxy = str(payload.get("socks5_proxy") or "").strip()
+                auto_failover = bool(payload.get("auto_failover", True))
                 
                 try:
                     new_proxy_port_int = int(new_proxy_port)
@@ -2555,6 +2632,7 @@ class Handler(BaseHTTPRequestHandler):
                 ui_cfg["routing_ip_type"] = routing_ip_type
                 ui_cfg["api_url"] = new_api_url
                 ui_cfg["socks5_proxy"] = new_socks5_proxy
+                ui_cfg["auto_failover"] = auto_failover
 
                 
                 auth_file = DATA_DIR / "ui_auth.json"

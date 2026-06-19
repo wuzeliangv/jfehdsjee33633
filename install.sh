@@ -350,6 +350,9 @@ WorkingDirectory=${PROJECT_DIR}
 ExecStart=/usr/bin/python3 -u ${PROJECT_DIR}/nodepool_manager.py
 Restart=on-failure
 RestartSec=3
+Environment=AUTO_TEST_ENABLED=true
+Environment=FETCH_INTERVAL_SECONDS=7200
+Environment=CHECK_INTERVAL_SECONDS=7200
 
 [Install]
 WantedBy=multi-user.target

@@ -189,6 +189,15 @@ def resolve_dns_over_tun0(host: str, dns_server: str = "8.8.8.8", timeout: float
         return host
     except OSError:
         pass
+        
+    # 如果 tun0 不存在，直接使用系统 DNS 解析（直连）
+    from pathlib import Path
+    if not Path("/sys/class/net/tun0").exists():
+        try:
+            return socket.gethostbyname(host)
+        except Exception:
+            return None
+            
     return dns_query_over_tun0(host, 1, dns_server, timeout) or dns_query_over_tun0(host, 28, dns_server, timeout)
 
 def create_connection(address: tuple[str, int], timeout: float = 20) -> socket.socket:
@@ -204,15 +213,24 @@ def create_connection(address: tuple[str, int], timeout: float = 20) -> socket.s
         try:
             sock = socket.socket(af, socktype, proto)
             sock.settimeout(timeout)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, b"tun0")
+            
+            # 只有当 tun0 网卡设备存在时，才绑定到该设备进行 VPN 代理出站
+            from pathlib import Path
+            if Path("/sys/class/net/tun0").exists():
+                try:
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, b"tun0")
+                except OSError as e:
+                    if "operation not permitted" in str(e).lower() or e.errno == 1:
+                        raise OSError(f"[错误代码 3006] [ERR_PROXY_BIND_TUN_PERM_DENIED] 绑定虚拟网卡 tun0 失败，权限不足！必须以 root 权限运行。") from e
+                    raise e
+            else:
+                # tun0 不存在时，默认不进行网卡绑定，走服务器直连线路出站
+                pass
+                
             sock.connect(sa)
             return sock
         except OSError as e:
             err = e
-            if "operation not permitted" in str(e).lower() or e.errno == 1:
-                err = OSError(f"[错误代码 3006] [ERR_PROXY_BIND_TUN_PERM_DENIED] 绑定虚拟网卡 tun0 失败，权限不足！必须以 root 权限运行，或者进程缺少 CAP_NET_RAW 权限。")
-            elif "no such device" in str(e).lower() or e.errno == 19:
-                err = OSError(f"[错误代码 3004] [ERR_ROUTE_DEV_NOT_FOUND] 绑定虚拟网卡 tun0 失败，找不到设备！这通常是因为 OpenVPN 核心未能成功连接或已被异常终止。")
             if sock is not None:
                 sock.close()
     if err is not None:
