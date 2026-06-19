@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Runtime data
+nodepool_data/
+logs/
+*.log
+*.tmp
+*.pid
+
+# Build/package artifacts
+*.build/
+*.dist/
+*.deb
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# AI assistant local files
+.gemini/
+.cursor/
+.cursorrules
+.aider*
+.codeium/
+.continue/
+.copilot/
+
+# Local scratch
+scratch/
+*连接配置*
+test_*.py
+*.bak
+*.orig
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
