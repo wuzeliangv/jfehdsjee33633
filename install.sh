@@ -11,19 +11,11 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-run_git() {
-  if [ -n "${GITHUB_TOKEN:-}" ]; then
-    git -c http.extraHeader="Authorization: Bearer ${GITHUB_TOKEN}" "$@"
-  else
-    git "$@"
-  fi
-}
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${SCRIPT_DIR}/nodepool_manager.py" ]; then
   PROJECT_DIR="${SCRIPT_DIR}"
 elif [ -d "${PROJECT_DIR}/.git" ]; then
-  run_git -C "${PROJECT_DIR}" pull --ff-only
+  git -C "${PROJECT_DIR}" pull --ff-only
 elif [ -e "${PROJECT_DIR}" ] && [ ! -d "${PROJECT_DIR}/.git" ]; then
   echo "安装目录已存在但不是 Git 仓库: ${PROJECT_DIR}"
   echo "请手动处理该目录后重新安装。"
@@ -33,7 +25,7 @@ else
     echo "未找到 git，请先安装 git。"
     exit 1
   }
-  run_git clone "${REPO_URL}" "${PROJECT_DIR}"
+  git clone "${REPO_URL}" "${PROJECT_DIR}"
 fi
 
 git -C "${PROJECT_DIR}" remote set-url origin "${REPO_URL}" 2>/dev/null || true

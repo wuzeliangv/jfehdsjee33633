@@ -48,25 +48,11 @@ apt install -y python3 openvpn curl iproute2 iptables
 
 ## 快速安装
 
-公开仓库可以直接执行：
+可以直接执行：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/personal-nodepool-gateway/main/install.sh)
 ```
-
-私有仓库需要使用具备仓库读取权限的 GitHub Token：
-
-```bash
-GITHUB_TOKEN="你的GitHubToken"
-bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" https://raw.githubusercontent.com/vzzoxo/personal-nodepool-gateway/main/install.sh)
-unset GITHUB_TOKEN
-```
-
-说明：
-
-- 私有仓库的 `raw.githubusercontent.com` 请求必须带 token，否则无法读取安装脚本。
-- 不建议把 token 直接写死到 README、脚本或 shell 历史中。
-- token 只需要仓库读取权限即可。
 
 默认安装目录是：
 
@@ -385,7 +371,6 @@ rm -rf /root/nodepool
 - 修改默认用户名、密码和安全路径。
 - 不要把后台暴露给不可信网络。
 - 如需公网访问，建议使用防火墙、反向代理鉴权或 VPN 内网访问。
-- 私有仓库 token 不要写入 README、脚本或 Git 历史。
 - 定期查看日志，确认没有异常登录或端口冲突。
 
 ## 许可证
