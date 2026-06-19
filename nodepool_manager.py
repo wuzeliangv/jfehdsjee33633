@@ -1829,6 +1829,12 @@ def load_html_file(filename: str) -> str:
 LOGIN_HTML = load_html_file("login.html")
 INDEX_HTML = load_html_file("index.html")
 
+ASSET_CONTENT_TYPES = {
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+}
+
 def check_proxy_health() -> dict[str, Any]:
     # 1. 检测代理服务端口是否在监听
     is_ipv6 = ":" in LOCAL_PROXY_HOST
@@ -2106,6 +2112,24 @@ class Handler(BaseHTTPRequestHandler):
     def send_json(self, data: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
         self.send_bytes(json.dumps(data, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8", status)
 
+    def serve_asset(self, effective_path: str) -> bool:
+        if not effective_path.startswith("/assets/"):
+            return False
+        rel = urllib.parse.unquote(effective_path.removeprefix("/assets/"))
+        if not rel or "/" in rel or "\\" in rel or rel.startswith("."):
+            self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
+            return True
+        asset_path = Path(__file__).parent / "web" / "assets" / rel
+        content_type = ASSET_CONTENT_TYPES.get(asset_path.suffix.lower())
+        if not content_type or not asset_path.is_file():
+            self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
+            return True
+        try:
+            self.send_bytes(asset_path.read_bytes(), content_type)
+        except Exception as e:
+            self.send_json({"error": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        return True
+
     def read_request_body(self, max_bytes: int = 65536) -> bytes:
         length = parse_int(self.headers.get("Content-Length"))
         if length < 0:
@@ -2126,6 +2150,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         effective_path = self.validate_path()
         if effective_path == "": return
+
+        if self.serve_asset(effective_path):
+            return
         
         if not self.is_authorized():
             if effective_path in ("/", "/index.html"):

@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Aimili 节点池管理系统</title>
+  <title>NodePool Gateway</title>
+  <link rel="icon" href="./assets/favicon.ico" sizes="any">
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
     
@@ -697,7 +700,7 @@
     }
 
     .sidebar-brand h2 {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 700;
       margin: 0;
       background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
@@ -706,7 +709,15 @@
       letter-spacing: -0.5px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+    }
+
+    .sidebar-logo {
+      width: 34px;
+      height: 34px;
+      display: block;
+      border-radius: 12px;
+      box-shadow: 0 10px 26px rgba(0, 122, 255, 0.18);
     }
 
     .sidebar-nav {
@@ -902,8 +913,8 @@
   <aside class="sidebar">
     <div class="sidebar-brand">
       <h2>
-        <svg xmlns="http://www.w3.org/2000/svg" style="width:24px; height:24px; color:#818cf8;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-        Aimili
+        <img class="sidebar-logo" src="./assets/favicon.svg" alt="" aria-hidden="true">
+        NodePool
       </h2>
     </div>
     
