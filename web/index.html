@@ -1715,7 +1715,7 @@ let _currentShareLink = '';
 
 async function loadXrayStatus() {
   try {
-    const r = await fetch('/api/xray/status');
+    const r = await fetch('./api/xray/status');
     const d = await r.json();
     const badge = $('xray_status_badge');
     const meta  = $('xray_status_meta');
@@ -1736,7 +1736,7 @@ async function loadXrayStatus() {
 
 async function loadXrayInbounds() {
   try {
-    const r = await fetch('/api/xray/inbounds');
+    const r = await fetch('./api/xray/inbounds');
     const d = await r.json();
     renderXrayInbounds(d.inbounds || []);
   } catch(e) {
@@ -1791,7 +1791,7 @@ function renderXrayInbounds(list) {
 async function xrayStart() {
   $('btn_xray_start').disabled = true;
   try {
-    const r = await fetch('/api/xray/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const r = await fetch('./api/xray/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const d = await r.json();
     if (d.ok) { await loadXrayStatus(); await loadXrayInbounds(); }
     else alert('启动失败: ' + d.error);
@@ -1801,7 +1801,7 @@ async function xrayStart() {
 async function xrayStop() {
   $('btn_xray_stop').disabled = true;
   try {
-    const r = await fetch('/api/xray/stop', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const r = await fetch('./api/xray/stop', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const d = await r.json();
     await loadXrayStatus();
     if (!d.ok) alert('停止失败: ' + d.error);
@@ -1810,7 +1810,7 @@ async function xrayStop() {
 
 async function xrayReload() {
   try {
-    const r = await fetch('/api/xray/reload', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const r = await fetch('./api/xray/reload', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const d = await r.json();
     await loadXrayStatus();
     if (!d.ok) alert('重载失败: ' + d.error);
@@ -1820,7 +1820,7 @@ async function xrayReload() {
 async function xrayDelete(id, name) {
   if (!confirm(`确认删除入站「${name}」？\n该操作不可撤销。`)) return;
   try {
-    const r = await fetch('/api/xray/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
+    const r = await fetch('./api/xray/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
     const d = await r.json();
     if (d.ok) { await loadXrayInbounds(); await loadXrayStatus(); }
     else alert('删除失败: ' + d.error);
@@ -1829,7 +1829,7 @@ async function xrayDelete(id, name) {
 
 async function xrayToggle(id) {
   try {
-    const r = await fetch('/api/xray/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
+    const r = await fetch('./api/xray/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
     const d = await r.json();
     if (d.ok) { await loadXrayInbounds(); await loadXrayStatus(); }
     else alert('操作失败: ' + d.error);
@@ -1838,7 +1838,7 @@ async function xrayToggle(id) {
 
 async function xrayShare(id) {
   try {
-    const r = await fetch(`/api/xray/share/${id}`);
+    const r = await fetch(`./api/xray/share/${id}`);
     const d = await r.json();
     if (d.ok) {
       _currentShareLink = d.link;
@@ -1908,17 +1908,17 @@ async function submitAddInbound() {
   const body = { protocol: _xrayProto, transport: _xrayTrans, remark, port, ws_path: wsPath, password, method };
 
   try {
-    const r = await fetch('/api/xray/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const r = await fetch('./api/xray/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
     const d = await r.json();
     if (d.ok) {
       closeAddInboundModal();
       await loadXrayInbounds();
       await loadXrayStatus();
       // Auto-start if not running
-      const statusR = await fetch('/api/xray/status');
+      const statusR = await fetch('./api/xray/status');
       const statusD = await statusR.json();
       if (!statusD.running) {
-        await fetch('/api/xray/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+        await fetch('./api/xray/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
         await loadXrayStatus();
       }
     } else {
