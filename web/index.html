@@ -1186,8 +1186,16 @@
             <label class="form-label" for="net_api_url">节点镜像源地址</label>
             <input type="url" id="net_api_url" class="input-field" placeholder="https://www.vpngate.net/api/iphone/" style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">
           </div>
-          <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; padding: 8px 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 6px;">
+          <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; padding: 8px 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 6px; margin-bottom: 12px;">
             💡 如果您在中国大陆无法拉取官方节点，可以在此填写 NodePool 官方发布的<strong>镜像网址</strong>。留空则使用默认官方源。
+          </div>
+          
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label class="form-label" for="net_socks5_proxy">节点拉取 SOCKS5 代理</label>
+            <input type="text" id="net_socks5_proxy" class="input-field" placeholder="socks5://username:password@ip:port" style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+          </div>
+          <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; padding: 8px 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 6px;">
+            💡 填写代理后，拉取节点时将使用此 SOCKS5 代理（支持带有账号密码的 <code>socks5://user:pass@ip:port</code> 格式），留空则默认使用本机直连拉取。
           </div>
         </div>
         
@@ -1359,6 +1367,8 @@ function switchView(viewId) {
       // 填充镜像源地址
       const defaultUrl = "https://www.vpngate.net/api/iphone/";
       $("net_api_url").value = (state.api_url && state.api_url !== defaultUrl) ? state.api_url : "";
+      // 填充socks5代理
+      $("net_socks5_proxy").value = state.socks5_proxy || "";
     }
     populateRoutingCountries();
   } else if (viewId === 'gateway') {
@@ -2443,7 +2453,8 @@ async function saveNetwork(e) {
         routing_mode: routingMode,
         force_country: forceCountry,
         routing_ip_type: routingIpType,
-        api_url: $("net_api_url").value.trim() || ""
+        api_url: $("net_api_url").value.trim() || "",
+        socks5_proxy: $("net_socks5_proxy").value.trim() || ""
       })
     });
     

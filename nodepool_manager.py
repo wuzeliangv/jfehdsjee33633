@@ -277,7 +277,8 @@ def load_ui_config() -> dict[str, Any]:
             "fixed_node_id": "",
             "favorite_node_ids": [],
             "fav_fail_fallback": True,
-            "api_url": "https://www.vpngate.net/api/iphone/"
+            "api_url": "https://www.vpngate.net/api/iphone/",
+            "socks5_proxy": ""
         }
         updated = False
         if auth_file.exists():
@@ -285,7 +286,7 @@ def load_ui_config() -> dict[str, Any]:
                 data = json.loads(auth_file.read_text(encoding="utf-8"))
                 for key, val in data.items():
                     config[key] = val
-                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "api_url"]:
+                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "api_url", "socks5_proxy"]:
                     if key not in data:
                         updated = True
             except Exception:
@@ -448,6 +449,7 @@ def get_state() -> dict[str, Any]:
     state["routing_mode"] = ui_cfg.get("routing_mode", "auto")
     state["force_country"] = ui_cfg.get("force_country", "")
     state["routing_ip_type"] = ui_cfg.get("routing_ip_type", "all")
+    state["socks5_proxy"] = ui_cfg.get("socks5_proxy", "")
     state["connection_enabled"] = ui_cfg.get("connection_enabled", True)
     state["fixed_node_id"] = ui_cfg.get("fixed_node_id", "")
     state["favorite_node_ids"] = ui_cfg.get("favorite_node_ids", [])
@@ -543,7 +545,7 @@ def read_socks5_connect_reply(sock: socket.socket) -> None:
 def format_host_port(host: str, port: int) -> str:
     return f"[{host}]:{port}" if ":" in host and not host.startswith("[") else f"{host}:{port}"
 
-def fetch_api_text_via_proxy(url: str, ptype: str, phost: str, pport: int, use_ssl_verify: bool = True) -> str:
+def fetch_api_text_via_proxy(url: str, ptype: str, phost: str, pport: int, use_ssl_verify: bool = True, proxy_user: str | None = None, proxy_pass: str | None = None) -> str:
     import socket
     import ssl
     import urllib.parse
@@ -563,7 +565,8 @@ def fetch_api_text_via_proxy(url: str, ptype: str, phost: str, pport: int, use_s
         s = socket.socket(af, socket.SOCK_STREAM)
         s.settimeout(12)
         s.connect((phost, pport))
-        proxy_user, proxy_pass = nodepool_utils.get_upstream_proxy_auth()
+        if proxy_user is None:
+            proxy_user, proxy_pass = nodepool_utils.get_upstream_proxy_auth()
         if ptype == "socks":
             # SOCKS5 Handshake
             if proxy_user is not None:
@@ -703,14 +706,31 @@ def fetch_api_text(url: str | None = None, use_ssl_verify: bool = True) -> str:
     if url is None:
         url = API_URL
     
-    ptype, phost, pport = nodepool_utils.get_upstream_proxy()
-    if ptype and phost and pport:
+    ui_cfg = load_ui_config()
+    socks5_proxy = ui_cfg.get("socks5_proxy", "").strip()
+    if socks5_proxy:
         try:
-            print(f"[fetch_api_text] 监测到上游代理 ({ptype}://{phost}:{pport})，尝试通过代理获取 API...", flush=True)
-            return fetch_api_text_via_proxy(url, ptype, phost, pport, use_ssl_verify)
+            parsed_proxy = urllib.parse.urlsplit(socks5_proxy)
+            ptype = "socks"
+            phost = parsed_proxy.hostname
+            pport = parsed_proxy.port or 1080
+            proxy_user = parsed_proxy.username
+            proxy_pass = parsed_proxy.password
+            if phost:
+                print(f"[fetch_api_text] 正在使用配置的 SOCKS5 代理 ({phost}:{pport}) 获取 API...", flush=True)
+                return fetch_api_text_via_proxy(url, ptype, phost, pport, use_ssl_verify, proxy_user, proxy_pass)
         except Exception as e:
-            print(f"[fetch_api_text] 通过代理获取 API 失败: {e}，尝试使用直连/默认系统代理...", flush=True)
-            log_to_json("WARNING", "Main", f"使用代理 {ptype}://{phost}:{pport} 获取 API 失败: {e}")
+            print(f"[fetch_api_text] 通过配置的 SOCKS5 代理获取 API 失败: {e}，将尝试使用直连...", flush=True)
+            log_to_json("WARNING", "Main", f"使用配置的 SOCKS5 代理 {socks5_proxy} 获取 API 失败: {e}")
+    else:
+        ptype, phost, pport = nodepool_utils.get_upstream_proxy()
+        if ptype and phost and pport:
+            try:
+                print(f"[fetch_api_text] 监测到上游代理 ({ptype}://{phost}:{pport})，尝试通过代理获取 API...", flush=True)
+                return fetch_api_text_via_proxy(url, ptype, phost, pport, use_ssl_verify)
+            except Exception as e:
+                print(f"[fetch_api_text] 通过代理获取 API 失败: {e}，尝试使用直连/默认系统代理...", flush=True)
+                log_to_json("WARNING", "Main", f"使用代理 {ptype}://{phost}:{pport} 获取 API 失败: {e}")
 
     request = urllib.request.Request(
         url,
@@ -2493,6 +2513,7 @@ class Handler(BaseHTTPRequestHandler):
                 force_country = str(payload.get("force_country") or "").strip()
                 routing_ip_type = str(payload.get("routing_ip_type") or "all").strip()
                 new_api_url = str(payload.get("api_url") or "").strip()
+                new_socks5_proxy = str(payload.get("socks5_proxy") or "").strip()
                 
                 try:
                     new_proxy_port_int = int(new_proxy_port)
@@ -2516,6 +2537,11 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     new_api_url = "https://www.vpngate.net/api/iphone/"
                 
+                if new_socks5_proxy:
+                    if not (new_socks5_proxy.startswith("socks5://") or new_socks5_proxy.startswith("socks5h://")):
+                        self.send_json({"ok": False, "error": "SOCKS5 代理网址必须以 socks5:// 或 socks5h:// 开头"}, HTTPStatus.BAD_REQUEST)
+                        return
+                
                 ui_cfg = load_ui_config()
                 expected_proxy_port = ui_cfg.get("proxy_port", 7928)
                 
@@ -2528,6 +2554,7 @@ class Handler(BaseHTTPRequestHandler):
                 ui_cfg["force_country"] = force_country
                 ui_cfg["routing_ip_type"] = routing_ip_type
                 ui_cfg["api_url"] = new_api_url
+                ui_cfg["socks5_proxy"] = new_socks5_proxy
 
                 
                 auth_file = DATA_DIR / "ui_auth.json"

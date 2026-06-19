@@ -254,7 +254,8 @@ config = {
     'fixed_node_id': '',
     'favorite_node_ids': [],
     'fav_fail_fallback': True,
-    'api_url': 'https://www.vpngate.net/api/iphone/'
+    'api_url': 'https://www.vpngate.net/api/iphone/',
+    'socks5_proxy': ''
 }
 if auth_file.exists():
     try:
