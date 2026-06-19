@@ -1,7 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="NodePool Gateway">
-  <rect x="14" y="14" width="100" height="100" rx="26" fill="#111318"/>
-  <rect x="14.75" y="14.75" width="98.5" height="98.5" rx="25.25" fill="none" stroke="#2A2D35" stroke-width="1.5"/>
-  <path d="M64 30 88 40v20c0 18-10 30-24 36-14-6-24-18-24-36V40l24-10Z" fill="none" stroke="#E8E8ED" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M53 64h22" stroke="#0A84FF" stroke-width="7" stroke-linecap="round"/>
-  <path d="M64 53v22" stroke="#0A84FF" stroke-width="7" stroke-linecap="round"/>
+  <rect x="14" y="14" width="100" height="100" rx="28" fill="#111318"/>
+  <rect x="15" y="15" width="98" height="98" rx="27" fill="none" stroke="#2A2D35" stroke-width="2"/>
+  <path d="M37 54 46 34l14 12h8l14-12 9 20" fill="none" stroke="#F5F5F7" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M39 58c0-16 11-27 25-27s25 11 25 27v11c0 16-11 27-25 27S39 85 39 69V58Z" fill="none" stroke="#F5F5F7" stroke-width="5.5" stroke-linejoin="round"/>
+  <path d="M53 65h1M74 65h1" stroke="#F5F5F7" stroke-width="7" stroke-linecap="round"/>
+  <path d="M58 79c4 3 8 3 12 0" fill="none" stroke="#F5F5F7" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M64 45v-7" stroke="#0A84FF" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="64" cy="34" r="4.5" fill="#0A84FF"/>
 </svg>
