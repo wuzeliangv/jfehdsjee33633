@@ -82,7 +82,7 @@ install_dependencies() {
 
   if has_cmd apt-get; then
     log_info "检测到 Debian/Ubuntu 系统，正在使用 apt 安装依赖..."
-    apt-get update -y
+    apt-get update -y >/dev/null
     local apt_pkgs=()
     for pkg in "${pkgs[@]}"; do
       if [ "$pkg" = "iproute2" ]; then
@@ -91,11 +91,11 @@ install_dependencies() {
         apt_pkgs+=("$pkg")
       fi
     done
-    apt-get install -y "${apt_pkgs[@]}"
+    apt-get install -y "${apt_pkgs[@]}" >/dev/null
   elif has_cmd dnf; then
     log_info "检测到 RedHat/CentOS/Rocky 系统，正在使用 dnf 安装依赖..."
     if ! rpm -q epel-release >/dev/null 2>&1; then
-      dnf install -y epel-release || true
+      dnf install -y epel-release >/dev/null || true
     fi
     local dnf_pkgs=()
     for pkg in "${pkgs[@]}"; do
@@ -105,11 +105,11 @@ install_dependencies() {
         dnf_pkgs+=("$pkg")
       fi
     done
-    dnf install -y "${dnf_pkgs[@]}"
+    dnf install -y "${dnf_pkgs[@]}" >/dev/null
   elif has_cmd yum; then
     log_info "检测到 RedHat/CentOS 系统，正在使用 yum 安装依赖..."
     if ! rpm -q epel-release >/dev/null 2>&1; then
-      yum install -y epel-release || true
+      yum install -y epel-release >/dev/null || true
     fi
     local yum_pkgs=()
     for pkg in "${pkgs[@]}"; do
@@ -119,10 +119,10 @@ install_dependencies() {
         yum_pkgs+=("$pkg")
       fi
     done
-    yum install -y "${yum_pkgs[@]}"
+    yum install -y "${yum_pkgs[@]}" >/dev/null
   elif has_cmd apk; then
     log_info "检测到 Alpine Linux 系统，正在使用 apk 安装依赖..."
-    apk add --no-cache "${pkgs[@]}" bash
+    apk add --no-cache "${pkgs[@]}" bash >/dev/null
   else
     log_warning "未识别的系统包管理器，请确保已手动安装: ${pkgs[*]}"
   fi
@@ -132,16 +132,16 @@ setup_tun() {
   if [ ! -c /dev/net/tun ]; then
     log_info "正在创建虚拟 /dev/net/tun 设备..."
     mkdir -p /dev/net
-    mknod /dev/net/tun c 10 200 || true
-    chmod 600 /dev/net/tun || true
+    mknod /dev/net/tun c 10 200 >/dev/null 2>&1 || true
+    chmod 600 /dev/net/tun >/dev/null 2>&1 || true
   fi
   if command -v lsmod >/dev/null 2>&1; then
     if ! lsmod | grep -q '^tun\s' >/dev/null 2>&1; then
       log_info "尝试加载 tun 内核模块..."
-      modprobe tun || true
+      modprobe tun >/dev/null 2>&1 || true
     fi
   else
-    modprobe tun || true
+    modprobe tun >/dev/null 2>&1 || true
   fi
 }
 
@@ -153,7 +153,7 @@ if [ -f "${SCRIPT_DIR}/nodepool_manager.py" ]; then
   PROJECT_DIR="${SCRIPT_DIR}"
 elif [ -d "${PROJECT_DIR}/.git" ]; then
   log_info "发现已有安装目录，正在同步并拉取远程最新代码..."
-  git -C "${PROJECT_DIR}" pull --ff-only
+  git -C "${PROJECT_DIR}" pull -q --ff-only
 elif [ -e "${PROJECT_DIR}" ] && [ ! -d "${PROJECT_DIR}/.git" ]; then
   log_error "安装目录已存在但不是 Git 仓库: ${PROJECT_DIR}"
   log_error "请手动处理或备份该目录后重新安装。"
@@ -164,7 +164,7 @@ else
     exit 1
   }
   log_info "正在从 GitHub 克隆项目代码..."
-  git clone "${REPO_URL}" "${PROJECT_DIR}"
+  git clone -q "${REPO_URL}" "${PROJECT_DIR}"
 fi
 
 git -C "${PROJECT_DIR}" remote set-url origin "${REPO_URL}" 2>/dev/null || true
@@ -328,13 +328,13 @@ with open(auth_file, 'w', encoding='utf-8') as f:
 # Clean up the old service if active
 if systemctl is-active aimili-nodepool.service >/dev/null 2>&1; then
   log_info "检测到旧的 aimili-nodepool 服务正在运行，正在停止并清理..."
-  systemctl disable --now aimili-nodepool.service 2>/dev/null || true
-  rm -f /etc/systemd/system/aimili-nodepool.service
+  systemctl disable --now aimili-nodepool.service >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/aimili-nodepool.service >/dev/null 2>&1 || true
 fi
 
 if systemctl is-enabled aimili-nodepool.service >/dev/null 2>&1; then
-  systemctl disable aimili-nodepool.service 2>/dev/null || true
-  rm -f /etc/systemd/system/aimili-nodepool.service
+  systemctl disable aimili-nodepool.service >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/aimili-nodepool.service >/dev/null 2>&1 || true
 fi
 
 # Write systemd service file
@@ -355,9 +355,17 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
-systemctl enable --now nodepool.service
-systemctl --no-pager --full status nodepool.service
+log_info "正在向 systemd 注册并启动 nodepool.service..."
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable --now nodepool.service >/dev/null 2>&1 || true
+
+if systemctl is-active nodepool.service >/dev/null 2>&1; then
+  log_success "nodepool.service 已成功在后台运行。"
+else
+  log_error "nodepool.service 启动失败！系统服务日志如下："
+  journalctl -u nodepool.service -n 20 --no-pager || true
+  exit 1
+fi
 
 # Get Public IP
 PUBLIC_IP=$(curl -s --max-time 2 https://api.ipify.org || curl -s --max-time 2 https://ifconfig.me || ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || echo "您的服务器公网IP")
