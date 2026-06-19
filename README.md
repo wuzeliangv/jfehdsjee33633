@@ -26,6 +26,27 @@ systemctl restart aimili-nodepool.service
 journalctl -u aimili-nodepool.service -f
 ```
 
+## 一键安装
+
+如果仓库是公开仓库，可以直接使用：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/personal-nodepool-gateway/main/install.sh)
+```
+
+如果仓库是私有仓库，需要使用有仓库读取权限的 GitHub token：
+
+```bash
+GITHUB_TOKEN="你的GitHubToken"
+bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" https://raw.githubusercontent.com/vzzoxo/personal-nodepool-gateway/main/install.sh)
+```
+
+不建议把 token 直接写进命令历史或 README。用完可以执行：
+
+```bash
+unset GITHUB_TOKEN
+```
+
 ## 本机配置
 
 配置文件：
