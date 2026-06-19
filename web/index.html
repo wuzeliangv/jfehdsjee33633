@@ -2612,10 +2612,7 @@ async function saveNetwork(e) {
   }
 }
 
-function toggleTgFields() {
-  const enabled = $("cred_tg_enabled").checked;
-  $("tg_config_fields").style.display = enabled ? "flex" : "none";
-}
+
 
 async function testTgNotification() {
   const token = $("cred_tg_bot_token").value.trim();
