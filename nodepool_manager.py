@@ -396,6 +396,24 @@ def read_nodes() -> list[dict[str, Any]]:
         return []
     return [item for item in raw if isinstance(item, dict)]
 
+def infer_last_fetch_at_from_cache() -> float:
+    timestamps: list[float] = []
+    for node in read_nodes():
+        try:
+            fetched_at = float(node.get("fetched_at") or 0)
+        except (TypeError, ValueError):
+            fetched_at = 0
+        if fetched_at > 0:
+            timestamps.append(fetched_at)
+    if timestamps:
+        return max(timestamps)
+    try:
+        if NODES_FILE.exists():
+            return NODES_FILE.stat().st_mtime
+    except OSError:
+        pass
+    return 0
+
 def get_state() -> dict[str, Any]:
     global active_openvpn_node_id, is_connecting
     state = read_json(STATE_FILE, {})
@@ -413,6 +431,12 @@ def get_state() -> dict[str, Any]:
     state.setdefault("last_fetch_status", "not_started")
     state.setdefault("last_check_message", "")
     state.setdefault("blacklisted_nodes", 0)
+    if not state.get("last_fetch_at"):
+        inferred_last_fetch_at = infer_last_fetch_at_from_cache()
+        if inferred_last_fetch_at:
+            state["last_fetch_at"] = inferred_last_fetch_at
+            if state.get("last_fetch_status") in ("not_started", "starting"):
+                state["last_fetch_status"] = "ok"
     
     # Pre-populate settings inputs in UI
     ui_cfg = load_ui_config()
@@ -2595,6 +2619,7 @@ class Handler(BaseHTTPRequestHandler):
                 if maintenance_lock.locked():
                     self.send_json({"ok": True, "message": "节点维护任务正在运行，请稍后再试", "running": True})
                 else:
+                    set_state(is_connecting=True, last_check_message="正在后台更新节点列表...")
                     threading.Thread(target=maintain_valid_nodes, args=(False, True), daemon=True).start()
                     self.send_json({"ok": True, "message": "已在后台启动节点更新流程", "running": False})
             except Exception as exc:

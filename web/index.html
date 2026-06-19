@@ -1953,18 +1953,54 @@ async function load(){
     startConnectionPolling();
   }
 }
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function reloadNodesState(){
+  const r = await fetch("./api/nodes");
+  const d = await r.json();
+  nodes = Array.isArray(d.nodes) ? d.nodes : [];
+  state = d.state || {};
+  stableSortNodes();
+  updateCountryFilter();
+  render();
+}
+
+async function waitForManualRefresh(previousLastFetchAt){
+  let sawRunning = false;
+  for (let i = 0; i < 60; i++) {
+    await sleep(i === 0 ? 1000 : 2000);
+    await reloadNodesState();
+    if (state.is_connecting) {
+      sawRunning = true;
+      continue;
+    }
+    if (sawRunning || i >= 2 || (state.last_fetch_at && state.last_fetch_at !== previousLastFetchAt)) {
+      break;
+    }
+  }
+}
+
 $("country_filter").onchange=()=>{ currentPage = 1; render(); };
 $("ip_type_filter").onchange=()=>{ currentPage = 1; render(); };
 
+const refreshButtonIdleHtml = $("refresh").innerHTML;
+
 $("refresh").onclick=async()=>{ 
-  $("refresh").disabled=true; 
-  $("refresh").textContent="正在后台更新..."; 
-  try{await fetch("./api/refresh_nodes",{method:"POST"}); await load();} 
-  catch(e){}
-  setTimeout(()=>{
-    $("refresh").disabled=false; 
-    $("refresh").textContent="更新节点";
-  }, 3000);
+  const btn = $("refresh");
+  const previousLastFetchAt = state.last_fetch_at || 0;
+  btn.disabled=true; 
+  btn.textContent="正在后台更新..."; 
+  try{
+    await fetch("./api/refresh_nodes",{method:"POST"});
+    await waitForManualRefresh(previousLastFetchAt);
+  } catch(e) {
+    console.error("更新节点失败", e);
+    await reloadNodesState().catch(() => {});
+  } finally {
+    btn.disabled=false; 
+    btn.innerHTML=refreshButtonIdleHtml;
+  }
 };
 $("btn_test_proxy").onclick = async () => {
   const btn = $("btn_test_proxy");
