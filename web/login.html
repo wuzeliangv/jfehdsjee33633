@@ -3,296 +3,318 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aimili - 安全登录</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <title>NodePool Gateway - 登录</title>
   <style>
     :root {
-      --bg-dark: #070913;
-      --bg-surface: rgba(255, 255, 255, 0.03);
-      --bg-surface-hover: rgba(255, 255, 255, 0.05);
-      --border-color: rgba(255, 255, 255, 0.08);
-      --border-color-focus: rgba(0, 122, 255, 0.65);
-      --text-primary: #f5f5f7;
-      --text-secondary: #86868b;
-      --primary: #007aff;
-      --primary-gradient: linear-gradient(135deg, #007aff 0%, #5856d6 100%);
-      --primary-hover: linear-gradient(135deg, #1485ff 0%, #6866e6 100%);
-      --success: #34c759;
-      --danger: #ff3b30;
-      
-      /* Neumorphic Shadows for Dark Mode */
-      --neumorphic-outset: 0 15px 35px rgba(0, 0, 0, 0.5), 
-                            inset 0 1px 0 rgba(255, 255, 255, 0.05),
-                            -2px -2px 10px rgba(255, 255, 255, 0.01),
-                            2px 2px 10px rgba(0, 0, 0, 0.3);
-      --neumorphic-inset: inset 2px 2px 5px rgba(0, 0, 0, 0.4), 
-                           inset -2px -2px 5px rgba(255, 255, 255, 0.03);
+      --bg: #0d0e10;
+      --panel: rgba(255, 255, 255, 0.075);
+      --panel-strong: rgba(255, 255, 255, 0.11);
+      --line: rgba(255, 255, 255, 0.12);
+      --line-strong: rgba(255, 255, 255, 0.22);
+      --text: #f5f5f7;
+      --muted: #a1a1a6;
+      --blue: #0a84ff;
+      --blue-2: #5e5ce6;
+      --danger: #ff453a;
+      --radius: 24px;
+    }
+
+    * {
+      box-sizing: border-box;
     }
 
     body {
+      min-height: 100vh;
       margin: 0;
-      padding: 0;
-      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
-      background-color: var(--bg-dark);
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(0, 122, 255, 0.12) 0px, transparent 40%),
-        radial-gradient(at 100% 0%, rgba(88, 86, 214, 0.12) 0px, transparent 40%),
-        radial-gradient(at 50% 100%, rgba(52, 199, 89, 0.05) 0px, transparent 50%);
-      background-attachment: fixed;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 16% 18%, rgba(10, 132, 255, 0.16), transparent 30%),
+        radial-gradient(circle at 88% 12%, rgba(255, 159, 10, 0.11), transparent 26%),
+        radial-gradient(circle at 72% 84%, rgba(48, 209, 88, 0.10), transparent 30%),
+        linear-gradient(135deg, #0d0e10 0%, #191a1f 52%, #0f1012 100%);
+      display: grid;
+      place-items: center;
+      padding: 28px;
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Ambient animated blurred lights in the background */
-    .ambient-lights {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 0;
+    .shell {
+      width: min(960px, 100%);
+      min-height: 540px;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
       overflow: hidden;
-      pointer-events: none;
+      border: 1px solid var(--line);
+      border-radius: 32px;
+      background: rgba(22, 22, 24, 0.56);
+      backdrop-filter: blur(32px) saturate(165%);
+      -webkit-backdrop-filter: blur(32px) saturate(165%);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
 
-    .light-spot {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(100px);
-      opacity: 0.15;
-      animation: float 20s infinite alternate ease-in-out;
+    .intro {
+      position: relative;
+      padding: 44px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border-right: 1px solid var(--line);
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025)),
+        radial-gradient(circle at 20% 30%, rgba(10, 132, 255, 0.17), transparent 34%);
     }
 
-    .light-spot-1 {
-      width: 400px;
-      height: 400px;
-      background: #007aff;
-      top: -100px;
-      left: -100px;
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0;
     }
 
-    .light-spot-2 {
-      width: 500px;
-      height: 500px;
-      background: #5856d6;
-      bottom: -150px;
-      right: -100px;
-      animation-duration: 25s;
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: rgba(10, 132, 255, 0.14);
+      border: 1px solid rgba(10, 132, 255, 0.32);
+      color: #8cc8ff;
     }
 
-    @keyframes float {
-      0% { transform: translate(0, 0) scale(1); }
-      100% { transform: translate(60px, 40px) scale(1.1); }
-    }
-
-    .login-container {
-      width: 100%;
+    .intro-copy h1 {
+      margin: 0;
       max-width: 420px;
-      padding: 24px;
-      box-sizing: border-box;
-      z-index: 1;
+      font-size: 42px;
+      line-height: 1.08;
+      font-weight: 760;
+      letter-spacing: 0;
     }
 
-    .login-card {
-      background: rgba(20, 20, 25, 0.35);
-      backdrop-filter: blur(30px) saturate(180%);
-      -webkit-backdrop-filter: blur(30px) saturate(180%);
-      border: 1px solid var(--border-color);
-      border-radius: 24px;
-      padding: 44px 36px;
-      box-shadow: var(--neumorphic-outset);
-      text-align: center;
-      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    .intro-copy p {
+      max-width: 430px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
     }
 
-    .brand-logo {
-      width: 68px;
-      height: 68px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--border-color);
-      border-radius: 18px;
+    .status-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      color: #d8d8dc;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #30d158;
+      box-shadow: 0 0 14px rgba(48, 209, 88, 0.8);
+    }
+
+    .login-pane {
+      padding: 44px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 0 auto 28px auto;
-      color: var(--text-primary);
-      position: relative;
-      box-shadow: var(--neumorphic-inset);
-      transition: all 0.3s ease;
+      background: rgba(8, 8, 10, 0.22);
     }
 
-    .brand-logo::after {
-      content: '';
-      position: absolute;
+    .login-form {
       width: 100%;
-      height: 100%;
-      border-radius: 18px;
-      border: 1.5px solid rgba(0, 122, 255, 0.4);
-      opacity: 0.8;
-      animation: ripple 2.5s infinite cubic-bezier(0.16, 1, 0.3, 1);
+      max-width: 360px;
     }
 
-    @keyframes ripple {
-      0% { transform: scale(0.95); opacity: 0.8; }
-      100% { transform: scale(1.45); opacity: 0; }
+    .form-title {
+      margin-bottom: 28px;
     }
 
-    .login-title {
-      font-size: 26px;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin: 0 0 10px 0;
-      letter-spacing: -0.5px;
+    .form-title h2 {
+      margin: 0;
+      font-size: 25px;
+      font-weight: 740;
+      letter-spacing: 0;
     }
 
-    .login-subtitle {
+    .form-title p {
+      margin: 8px 0 0;
+      color: var(--muted);
       font-size: 14px;
-      color: var(--text-secondary);
-      margin: 0 0 36px 0;
-      font-weight: 400;
+      line-height: 1.5;
     }
 
-    .form-group {
-      margin-bottom: 22px;
-      text-align: left;
+    .field {
+      margin-bottom: 16px;
     }
 
-    .form-label {
+    .field label {
       display: block;
+      margin: 0 0 8px 2px;
+      color: #d6d6da;
       font-size: 13px;
-      font-weight: 500;
-      color: var(--text-primary);
-      opacity: 0.85;
-      margin-bottom: 9px;
-      margin-left: 4px;
-      letter-spacing: 0.2px;
-    }
-
-    .input-wrapper {
-      position: relative;
+      font-weight: 650;
     }
 
     .input-field {
       width: 100%;
       height: 48px;
-      background: rgba(0, 0, 0, 0.25);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 0 16px;
-      box-sizing: border-box;
-      color: var(--text-primary);
-      font-family: inherit;
-      font-size: 15px;
+      padding: 0 15px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
       outline: none;
-      box-shadow: var(--neumorphic-inset);
-      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      background: rgba(0, 0, 0, 0.28);
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+      transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .input-field::placeholder {
+      color: rgba(235, 235, 245, 0.35);
     }
 
     .input-field:focus {
-      border-color: var(--border-color-focus);
-      box-shadow: var(--neumorphic-inset), 0 0 0 3px rgba(0, 122, 255, 0.2);
-      background: rgba(0, 0, 0, 0.4);
+      border-color: rgba(10, 132, 255, 0.72);
+      background: rgba(0, 0, 0, 0.38);
+      box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.04);
     }
 
     .error-message {
+      min-height: 20px;
+      margin: 8px 0 14px 2px;
       color: var(--danger);
-      font-size: 13px;
-      margin-top: 10px;
-      min-height: 18px;
-      text-align: left;
-      margin-left: 4px;
-      font-weight: 500;
       display: none;
-      animation: shake 0.4s ease;
-    }
-
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      25% { transform: translateX(-4px); }
-      75% { transform: translateX(4px); }
+      font-size: 13px;
+      line-height: 1.45;
     }
 
     .login-btn {
       width: 100%;
       height: 48px;
-      background: var(--primary-gradient);
-      border: none;
-      border-radius: 12px;
-      color: white;
-      font-family: inherit;
-      font-size: 15px;
-      font-weight: 600;
+      border: 0;
+      border-radius: 14px;
       cursor: pointer;
-      box-shadow: 0 8px 24px rgba(0, 122, 255, 0.3), 
-                  inset 0 1px 0 rgba(255, 255, 255, 0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      color: #fff;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 720;
+      background: linear-gradient(135deg, var(--blue), var(--blue-2));
+      box-shadow: 0 12px 28px rgba(10, 132, 255, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
     }
 
-    .login-btn:hover {
-      background: var(--primary-hover);
-      box-shadow: 0 12px 30px rgba(0, 122, 255, 0.45), 
-                  inset 0 1px 0 rgba(255, 255, 255, 0.3);
-      transform: translateY(-1.5px);
+    .login-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 34px rgba(10, 132, 255, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.24);
     }
 
-    .login-btn:active {
-      transform: scale(0.97) translateY(0);
-      box-shadow: 0 4px 10px rgba(0, 122, 255, 0.2);
+    .login-btn:active:not(:disabled) {
+      transform: translateY(0) scale(0.985);
     }
 
     .login-btn:disabled {
       opacity: 0.55;
-      cursor: not-allowed;
-      transform: none !important;
-      box-shadow: none !important;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    @media (max-width: 760px) {
+      body {
+        padding: 14px;
+        place-items: stretch;
+      }
+
+      .shell {
+        min-height: calc(100vh - 28px);
+        grid-template-columns: 1fr;
+        border-radius: 26px;
+      }
+
+      .intro {
+        min-height: 260px;
+        padding: 30px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .intro-copy h1 {
+        font-size: 30px;
+      }
+
+      .login-pane {
+        padding: 30px;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="ambient-lights">
-    <div class="light-spot light-spot-1"></div>
-    <div class="light-spot light-spot-2"></div>
-  </div>
-
-  <div class="login-container">
-    <div class="login-card">
-      <div class="brand-logo">
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-      </div>
-      <h2 class="login-title">Aimili</h2>
-      <p class="login-subtitle">请输入您的管理账号和安全密码以继续</p>
-      
-      <form id="login_form" onsubmit="handleLogin(event)">
-        <div class="form-group">
-          <label class="form-label" for="username">管理账号</label>
-          <div class="input-wrapper">
-            <input type="text" id="username" name="username" class="input-field" placeholder="请输入管理账号" required autocomplete="username">
-          </div>
+  <main class="shell">
+    <section class="intro">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+            <path d="M12 3.5l7 3v5.2c0 4.2-2.8 7.9-7 8.8-4.2-.9-7-4.6-7-8.8V6.5l7-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M8.7 12.1l2.1 2.1 4.6-4.7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
-        <div class="form-group" style="margin-top: 18px;">
-          <label class="form-label" for="password">安全密码</label>
-          <div class="input-wrapper">
-            <input type="password" id="password" name="password" class="input-field" placeholder="请输入安全密码" required autocomplete="current-password">
-          </div>
+        NodePool Gateway
+      </div>
+
+      <div class="intro-copy">
+        <h1>本机代理网关控制台</h1>
+        <p>管理节点、路由策略和本机 HTTP/SOCKS5 出口。登录后进入私有控制面板。</p>
+      </div>
+
+      <div class="status-strip" aria-label="服务状态">
+        <span class="chip"><span class="dot"></span> Web Console</span>
+        <span class="chip">Local Proxy</span>
+        <span class="chip">OpenVPN Core</span>
+      </div>
+    </section>
+
+    <section class="login-pane">
+      <form id="login_form" class="login-form" onsubmit="handleLogin(event)">
+        <div class="form-title">
+          <h2>登录</h2>
+          <p>请输入管理账号和密码。</p>
+        </div>
+
+        <div class="field">
+          <label for="username">管理账号</label>
+          <input type="text" id="username" name="username" class="input-field" placeholder="Username" required autocomplete="username">
+        </div>
+
+        <div class="field">
+          <label for="password">安全密码</label>
+          <input type="password" id="password" name="password" class="input-field" placeholder="Password" required autocomplete="current-password">
           <div id="error_text" class="error-message"></div>
         </div>
-        
-        <button type="submit" id="submit_btn" class="login-btn" style="margin-top: 32px;">
-          <span>登录</span>
+
+        <button type="submit" id="submit_btn" class="login-btn">
+          <span>进入控制台</span>
         </button>
       </form>
-    </div>
-  </div>
+    </section>
+  </main>
 
   <script>
     async function handleLogin(e) {
@@ -301,18 +323,18 @@
       const pwd = document.getElementById("password").value.trim();
       const errorText = document.getElementById("error_text");
       const submitBtn = document.getElementById("submit_btn");
-      
+
       errorText.style.display = "none";
       submitBtn.disabled = true;
       submitBtn.querySelector("span").textContent = "正在验证...";
-      
+
       try {
         const response = await fetch("./api/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: uname, password: pwd })
         });
-        
+
         const data = await response.json();
         if (response.ok && data.ok) {
           window.location.reload();
@@ -320,13 +342,13 @@
           errorText.textContent = data.error || "账号或密码不正确，请重新输入";
           errorText.style.display = "block";
           submitBtn.disabled = false;
-          submitBtn.querySelector("span").textContent = "登录";
+          submitBtn.querySelector("span").textContent = "进入控制台";
         }
       } catch (err) {
         errorText.textContent = "连接服务器失败，请稍后重试";
         errorText.style.display = "block";
         submitBtn.disabled = false;
-        submitBtn.querySelector("span").textContent = "登录";
+        submitBtn.querySelector("span").textContent = "进入控制台";
       }
     }
   </script>
