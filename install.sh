@@ -6,13 +6,59 @@ REPO_URL="${REPO_URL:-${DEFAULT_REPO_URL}}"
 PROJECT_DIR="/root/nodepool"
 SERVICE_FILE="/etc/systemd/system/nodepool.service"
 
+# Terminal Color Support Check
+if [ -t 1 ]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[0;33m'
+  BLUE='\033[0;34m'
+  PURPLE='\033[0;35m'
+  CYAN='\033[0;36m'
+  NC='\033[0m' # No Color
+  BOLD='\033[1m'
+else
+  RED=''
+  GREEN=''
+  YELLOW=''
+  BLUE=''
+  PURPLE=''
+  CYAN=''
+  NC=''
+  BOLD=''
+fi
+
+log_info() {
+  echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+  echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_warning() {
+  echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+  echo -e "${RED}[ERROR]${NC} $1"
+}
+
+show_banner() {
+  echo -e "${CYAN}┌──────────────────────────────────────────────────┐${NC}"
+  echo -e "${CYAN}│             ${BOLD}NodePool Gateway Installer${NC}${CYAN}           │${NC}"
+  echo -e "${CYAN}│          一键安装与自检配置脚本 v2.1             │${NC}"
+  echo -e "${CYAN}└──────────────────────────────────────────────────┘${NC}"
+}
+
 if [ "$(id -u)" -ne 0 ]; then
-  echo "请使用 root 运行。"
+  echo -e "${RED}[ERROR]${NC} 请使用 root 权限运行本脚本。"
   exit 1
 fi
 
+show_banner
+
 install_dependencies() {
-  echo "正在检查并自动安装必要依赖 (git, python3, openvpn, curl, iproute2, iptables)..."
+  log_info "正在检查并自动安装必要依赖 (git, python3, openvpn, curl, iproute2, iptables)..."
 
   local pkgs=()
   
@@ -28,14 +74,14 @@ install_dependencies() {
   if ! has_cmd iptables; then pkgs+=(iptables); fi
 
   if [ ${#pkgs[@]} -eq 0 ]; then
-    echo "所有基础依赖已满足。"
+    log_success "所有基础系统依赖已满足。"
     return 0
   fi
 
-  echo "待安装依赖: ${pkgs[*]}"
+  log_info "待安装系统依赖: ${pkgs[*]}"
 
   if has_cmd apt-get; then
-    echo "检测到 Debian/Ubuntu 系统，正在使用 apt 安装..."
+    log_info "检测到 Debian/Ubuntu 系统，正在使用 apt 安装依赖..."
     apt-get update -y
     local apt_pkgs=()
     for pkg in "${pkgs[@]}"; do
@@ -47,7 +93,7 @@ install_dependencies() {
     done
     apt-get install -y "${apt_pkgs[@]}"
   elif has_cmd dnf; then
-    echo "检测到 RedHat/CentOS/Rocky 系统，正在使用 dnf 安装..."
+    log_info "检测到 RedHat/CentOS/Rocky 系统，正在使用 dnf 安装依赖..."
     if ! rpm -q epel-release >/dev/null 2>&1; then
       dnf install -y epel-release || true
     fi
@@ -61,7 +107,7 @@ install_dependencies() {
     done
     dnf install -y "${dnf_pkgs[@]}"
   elif has_cmd yum; then
-    echo "检测到 RedHat/CentOS 系统，正在使用 yum 安装..."
+    log_info "检测到 RedHat/CentOS 系统，正在使用 yum 安装依赖..."
     if ! rpm -q epel-release >/dev/null 2>&1; then
       yum install -y epel-release || true
     fi
@@ -75,23 +121,23 @@ install_dependencies() {
     done
     yum install -y "${yum_pkgs[@]}"
   elif has_cmd apk; then
-    echo "检测到 Alpine Linux 系统，正在使用 apk 安装..."
+    log_info "检测到 Alpine Linux 系统，正在使用 apk 安装依赖..."
     apk add --no-cache "${pkgs[@]}" bash
   else
-    echo "未识别的包管理器，请手动安装: ${pkgs[*]}"
+    log_warning "未识别的系统包管理器，请确保已手动安装: ${pkgs[*]}"
   fi
 }
 
 setup_tun() {
   if [ ! -c /dev/net/tun ]; then
-    echo "正在创建 /dev/net/tun 设备..."
+    log_info "正在创建虚拟 /dev/net/tun 设备..."
     mkdir -p /dev/net
     mknod /dev/net/tun c 10 200 || true
     chmod 600 /dev/net/tun || true
   fi
   if command -v lsmod >/dev/null 2>&1; then
     if ! lsmod | grep -q '^tun\s' >/dev/null 2>&1; then
-      echo "尝试加载 tun 内核模块..."
+      log_info "尝试加载 tun 内核模块..."
       modprobe tun || true
     fi
   else
@@ -106,16 +152,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${SCRIPT_DIR}/nodepool_manager.py" ]; then
   PROJECT_DIR="${SCRIPT_DIR}"
 elif [ -d "${PROJECT_DIR}/.git" ]; then
+  log_info "发现已有安装目录，正在同步并拉取远程最新代码..."
   git -C "${PROJECT_DIR}" pull --ff-only
 elif [ -e "${PROJECT_DIR}" ] && [ ! -d "${PROJECT_DIR}/.git" ]; then
-  echo "安装目录已存在但不是 Git 仓库: ${PROJECT_DIR}"
-  echo "请手动处理该目录后重新安装。"
+  log_error "安装目录已存在但不是 Git 仓库: ${PROJECT_DIR}"
+  log_error "请手动处理或备份该目录后重新安装。"
   exit 1
 else
   command -v git >/dev/null 2>&1 || {
-    echo "未找到 git，请先安装 git。"
+    log_error "未找到 git 指令，请先手动安装 git 后重试。"
     exit 1
   }
+  log_info "正在从 GitHub 克隆项目代码..."
   git clone "${REPO_URL}" "${PROJECT_DIR}"
 fi
 
@@ -180,7 +228,7 @@ read_input() {
   local default="$2"
   local var_name="$3"
   local input
-  echo -n "$prompt [$default]: " >/dev/tty
+  echo -ne "${BOLD}${prompt}${NC} [${YELLOW}${default}${NC}]: " >/dev/tty
   read -r input </dev/tty || true
   if [ -z "$input" ]; then
     eval "$var_name=\"$default\""
@@ -191,11 +239,11 @@ read_input() {
 
 if [ "$IS_INTERACTIVE" = true ]; then
   echo ""
-  echo "========================================="
-  echo "         NodePool 网关交互式配置         "
-  echo "========================================="
+  echo -e "${PURPLE}┌─────────────────────────────────────────┐${NC}"
+  echo -e "${PURPLE}│         NodePool 网关交互式配置         │${NC}"
+  echo -e "${PURPLE}└─────────────────────────────────────────┘${NC}"
   
-  echo -n "是否进行自定义配置？(若选择 否，将自动使用默认或随机配置) [y/N]: " >/dev/tty
+  echo -ne "${BOLD}是否进行自定义配置？${NC}(若选择 否，将自动使用默认或随机配置) [y/N]: " >/dev/tty
   read -r CUSTOM_CHOICE </dev/tty || true
   
   if [[ "$CUSTOM_CHOICE" =~ ^[yY](es)?$ ]]; then
@@ -205,7 +253,7 @@ if [ "$IS_INTERACTIVE" = true ]; then
       if [[ "$WEB_PORT" =~ ^[0-9]+$ ]] && [ "$WEB_PORT" -ge 1 ] && [ "$WEB_PORT" -le 65535 ]; then
         break
       else
-        echo "无效的端口号，请重新输入。" >/dev/tty
+        log_warning "无效的端口号，请重新输入。" >/dev/tty
       fi
     done
 
@@ -214,12 +262,12 @@ if [ "$IS_INTERACTIVE" = true ]; then
       read_input "请输入出站代理端口 (1024-65535)" "${PROXY_PORT}" "PROXY_PORT"
       if [[ "$PROXY_PORT" =~ ^[0-9]+$ ]] && [ "$PROXY_PORT" -ge 1024 ] && [ "$PROXY_PORT" -le 65535 ]; then
         if [ "$PROXY_PORT" -eq "$WEB_PORT" ]; then
-          echo "出站代理端口不能与管理网页端口相同，请重新输入。" >/dev/tty
+          log_warning "出站代理端口不能与管理网页端口相同，请重新输入。" >/dev/tty
         else
           break
         fi
       else
-        echo "无效的端口号，请输入 1024-65535 之间的数字。" >/dev/tty
+        log_warning "无效的端口号，请输入 1024-65535 之间的数字。" >/dev/tty
       fi
     done
 
@@ -235,7 +283,7 @@ if [ "$IS_INTERACTIVE" = true ]; then
   fi
 fi
 
-echo "正在配置登录信息与端口参数..."
+log_info "正在配置登录信息与端口参数..."
 mkdir -p "$(dirname "${AUTH_FILE}")"
 python3 -c "
 import json, pathlib
@@ -279,7 +327,7 @@ with open(auth_file, 'w', encoding='utf-8') as f:
 
 # Clean up the old service if active
 if systemctl is-active aimili-nodepool.service >/dev/null 2>&1; then
-  echo "检测到旧的 aimili-nodepool 服务正在运行，正在停止并清理..."
+  log_info "检测到旧的 aimili-nodepool 服务正在运行，正在停止并清理..."
   systemctl disable --now aimili-nodepool.service 2>/dev/null || true
   rm -f /etc/systemd/system/aimili-nodepool.service
 fi
@@ -315,21 +363,21 @@ systemctl --no-pager --full status nodepool.service
 PUBLIC_IP=$(curl -s --max-time 2 https://api.ipify.org || curl -s --max-time 2 https://ifconfig.me || ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || echo "您的服务器公网IP")
 
 echo ""
-echo "=========================================================="
-echo "          NodePool Gateway 安装成功与配置详情"
-echo "=========================================================="
-echo " 网页管理地址: http://${PUBLIC_IP}:${WEB_PORT}/${SECRET_PATH}/"
-echo " 网页管理账号: ${USER_NAME}"
-echo " 网页管理密码: ${PASSWORD}"
-echo "----------------------------------------------------------"
-echo " 本地出站代理 (HTTP/SOCKS5):"
-echo "   SOCKS5 代理: socks5://${PUBLIC_IP}:${PROXY_PORT}"
-echo "   HTTP 代理:   http://${PUBLIC_IP}:${PROXY_PORT}"
-echo "=========================================================="
-echo " 提示: 系统服务已注册为 nodepool.service"
-echo " 常用管理命令:"
-echo "   systemctl status nodepool.service   # 查看状态"
-echo "   systemctl restart nodepool.service  # 重启服务"
-echo "   systemctl stop nodepool.service     # 停止服务"
-echo "=========================================================="
+echo -e "${GREEN}┌──────────────────────────────────────────────────────────┐${NC}"
+echo -e "${GREEN}│          NodePool Gateway 安装成功与配置详情             │${NC}"
+echo -e "${GREEN}└──────────────────────────────────────────────────────────┘${NC}"
+echo -e "  ${BOLD}网页管理地址:${NC} ${CYAN}http://${PUBLIC_IP}:${WEB_PORT}/${SECRET_PATH}/${NC}"
+echo -e "  ${BOLD}网页管理账号:${NC} ${YELLOW}${USER_NAME}${NC}"
+echo -e "  ${BOLD}网页管理密码:${NC} ${YELLOW}${PASSWORD}${NC}"
+echo -e " ──────────────────────────────────────────────────────────"
+echo -e "  ${BOLD}本地出站代理 (HTTP/SOCKS5):${NC}"
+echo -e "    SOCKS5 代理: ${GREEN}socks5://${PUBLIC_IP}:${PROXY_PORT}${NC}"
+echo -e "    HTTP 代理:   ${GREEN}http://${PUBLIC_IP}:${PROXY_PORT}${NC}"
+echo -e " ──────────────────────────────────────────────────────────"
+echo -e "  ${BOLD}提示:${NC} 系统服务已注册为 ${CYAN}nodepool.service${NC}"
+echo -e "  ${BOLD}常用管理命令:${NC}"
+echo -e "    systemctl status nodepool.service   # 查看状态"
+echo -e "    systemctl restart nodepool.service  # 重启服务"
+echo -e "    systemctl stop nodepool.service     # 停止服务"
+echo -e "${GREEN}──────────────────────────────────────────────────────────${NC}"
 echo ""
