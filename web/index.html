@@ -1208,6 +1208,34 @@
             </div>
           </label>
         </div>
+
+        <div style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 16px; margin-bottom: 16px;">
+          <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none; margin-bottom: 16px;">
+            <input type="checkbox" id="net_tg_enabled" style="margin-top: 3px; cursor: pointer;" onchange="toggleTgFields()" />
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">启用 Telegram 通知</span>
+              <span style="font-size: 12px; color: var(--text-secondary);">开启后，系统在节点连接成功、连接断开或故障自动切换时，会通过 Telegram Bot 发送实时通知。</span>
+            </div>
+          </label>
+
+          <div id="tg_config_fields" style="display: none; flex-direction: column; gap: 12px; padding-left: 24px; margin-bottom: 8px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="net_tg_bot_token">TG Bot Token</label>
+              <input type="text" id="net_tg_bot_token" class="input-field" placeholder="例如：123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="net_tg_chat_id">TG Chat ID</label>
+              <input type="text" id="net_tg_chat_id" class="input-field" placeholder="例如：987654321 或 -100123456789" style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center; margin-top: 4px;">
+              <button type="button" onclick="testTgNotification()" class="btn-secondary" style="height: 32px; padding: 0 12px; font-size: 12px; font-weight: 500; border-radius: 6px; display: flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-primary); cursor: pointer;">
+                <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; color: var(--primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                发送测试消息
+              </button>
+              <span id="tg_test_result" style="font-size: 12px;"></span>
+            </div>
+          </div>
+        </div>
         
         <div style="display: flex; gap: 12px; justify-content: flex-end;">
           <button type="submit" id="network_submit_btn" class="btn-primary" style="height: 40px; padding: 0 20px; font-weight: 600; border-radius: 8px;">保存修改</button>
@@ -1459,6 +1487,11 @@ function switchView(viewId) {
       $("net_socks5_proxy").value = state.socks5_proxy || "";
       // 填充是否开启故障自动切换
       $("net_auto_failover").checked = (state.auto_failover !== undefined) ? state.auto_failover : true;
+      // 填充是否开启 Telegram 通知以及配置
+      $("net_tg_enabled").checked = state.tg_enabled || false;
+      $("net_tg_bot_token").value = state.tg_bot_token || "";
+      $("net_tg_chat_id").value = state.tg_chat_id || "";
+      toggleTgFields();
     }
     populateRoutingCountries();
   } else if (viewId === 'gateway') {
@@ -2545,7 +2578,10 @@ async function saveNetwork(e) {
         routing_ip_type: routingIpType,
         api_url: $("net_api_url").value.trim() || "",
         socks5_proxy: $("net_socks5_proxy").value.trim() || "",
-        auto_failover: $("net_auto_failover").checked
+        auto_failover: $("net_auto_failover").checked,
+        tg_enabled: $("net_tg_enabled").checked,
+        tg_bot_token: $("net_tg_bot_token").value.trim(),
+        tg_chat_id: $("net_tg_chat_id").value.trim()
       })
     });
     
@@ -2583,7 +2619,47 @@ async function saveNetwork(e) {
   }
 }
 
+function toggleTgFields() {
+  const enabled = $("net_tg_enabled").checked;
+  $("tg_config_fields").style.display = enabled ? "flex" : "none";
+}
 
+async function testTgNotification() {
+  const token = $("net_tg_bot_token").value.trim();
+  const chatId = $("net_tg_chat_id").value.trim();
+  const resLabel = $("tg_test_result");
+  
+  if (!token || !chatId) {
+    resLabel.style.color = "var(--danger)";
+    resLabel.textContent = "❌ 请先填写 TG Bot Token 和 Chat ID";
+    return;
+  }
+  
+  resLabel.style.color = "var(--text-secondary)";
+  resLabel.textContent = "⏳ 正在发送测试消息...";
+  
+  try {
+    const res = await fetch("./api/test_tg", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tg_bot_token: token,
+        tg_chat_id: chatId
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      resLabel.style.color = "var(--success)";
+      resLabel.textContent = "✅ 测试消息发送成功，请检查您的 TG！";
+    } else {
+      resLabel.style.color = "var(--danger)";
+      resLabel.textContent = `❌ 发送失败: ${data.error || "未知错误"}`;
+    }
+  } catch (err) {
+    resLabel.style.color = "var(--danger)";
+    resLabel.textContent = `❌ 请求失败: ${err.message || err}`;
+  }
+}
 
 async function logoutAdmin() {
   try {

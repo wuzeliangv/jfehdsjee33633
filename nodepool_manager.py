@@ -279,7 +279,10 @@ def load_ui_config() -> dict[str, Any]:
             "fav_fail_fallback": True,
             "api_url": "https://www.vpngate.net/api/iphone/",
             "socks5_proxy": "",
-            "auto_failover": True
+            "auto_failover": True,
+            "tg_enabled": False,
+            "tg_bot_token": "",
+            "tg_chat_id": ""
         }
         updated = False
         if auth_file.exists():
@@ -287,7 +290,7 @@ def load_ui_config() -> dict[str, Any]:
                 data = json.loads(auth_file.read_text(encoding="utf-8"))
                 for key, val in data.items():
                     config[key] = val
-                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "api_url", "socks5_proxy", "auto_failover"]:
+                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "api_url", "socks5_proxy", "auto_failover", "tg_enabled", "tg_bot_token", "tg_chat_id"]:
                     if key not in data:
                         updated = True
             except Exception:
@@ -456,12 +459,45 @@ def get_state() -> dict[str, Any]:
     state["favorite_node_ids"] = ui_cfg.get("favorite_node_ids", [])
     state["fav_fail_fallback"] = ui_cfg.get("fav_fail_fallback", True)
     state["auto_failover"] = ui_cfg.get("auto_failover", True)
+    state["tg_enabled"] = ui_cfg.get("tg_enabled", False)
+    state["tg_bot_token"] = ui_cfg.get("tg_bot_token", "")
+    state["tg_chat_id"] = ui_cfg.get("tg_chat_id", "")
     
     return state
 
 def safe_name(value: str) -> str:
     value = re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip())
     return value.strip("._") or "node"
+
+def send_telegram_notification(message: str) -> None:
+    ui_cfg = load_ui_config()
+    if not ui_cfg.get("tg_enabled", False):
+        return
+    token = ui_cfg.get("tg_bot_token", "").strip()
+    chat_id = ui_cfg.get("tg_chat_id", "").strip()
+    if not token or not chat_id:
+        return
+
+    def _send():
+        try:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            payload = json.dumps({
+                "chat_id": chat_id,
+                "text": message,
+                "parse_mode": "HTML"
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/json", "User-Agent": "nodepool-manager/2.0"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                response.read()
+        except Exception as e:
+            print(f"[Telegram通知失败] {e}", flush=True)
+
+    threading.Thread(target=_send, daemon=True).start()
 
 def clear_active_connection_state(message: str) -> None:
     global active_openvpn_process, active_openvpn_node_id
@@ -1584,7 +1620,7 @@ def auto_switch_node(attempt: int = 0) -> None:
         print(f"[自动切换] {msg}", flush=True)
         log_to_json("INFO", "Node", msg)
         try:
-            connect_node(next_node["id"])
+            connect_node(next_node["id"], reason="自动故障切换")
         except Exception as e:
             err_msg = f"切换到备用节点 {next_node['id']} 失败: {e}，将尝试下一个..."
             print(f"[自动切换] {err_msg}", flush=True)
@@ -1604,6 +1640,13 @@ def auto_switch_node(attempt: int = 0) -> None:
             write_json(NODES_FILE, nodes)
         set_state(active_openvpn_node_id="", last_check_message=msg)
         
+        send_telegram_notification(
+            f"❌ <b>故障自动切换失败</b>\n\n"
+            f"<b>路由模式:</b> {routing_mode}\n"
+            f"<b>状态:</b> 代理连接已断开，无可用备用节点\n"
+            f"<b>提示:</b> {msg}"
+        )
+        
         def bg_fetch_and_switch():
             try:
                 maintain_valid_nodes(force=False)
@@ -1613,7 +1656,7 @@ def auto_switch_node(attempt: int = 0) -> None:
         
         threading.Thread(target=bg_fetch_and_switch, daemon=True).start()
 
-def connect_node(node_id: str) -> str:
+def connect_node(node_id: str, reason: str = "手动连接") -> str:
     global active_openvpn_process, active_openvpn_node_id, is_connecting
     node_id = str(node_id or "").strip()
     if not node_id:
@@ -1627,7 +1670,7 @@ def connect_node(node_id: str) -> str:
         set_state(is_connecting=True, active_node_latency="正在连接", last_check_message=f"正在初始化连接配置: {node_id}")
         
     try:
-        log_to_json("INFO", "Node", f"开始连接节点: {node_id}")
+        log_to_json("INFO", "Node", f"开始连接节点: {node_id} ({reason})")
 
         nodes = read_nodes()
         node = next((item for item in nodes if item.get("id") == node_id), None)
@@ -1729,6 +1772,37 @@ def connect_node(node_id: str) -> str:
         latency_str = f"{last_active_latency} ms" if last_active_latency > 0 else "检测超时"
         set_state(active_openvpn_node_id=node_id, is_connecting=False, last_check_message=f"Connected {node_id}", active_node_latency=latency_str)
         log_to_json("INFO", "Node", f"节点 {node_id} 连接成功，出口网卡 tun0 已启用")
+        
+        try:
+            ip_or_host = node.get("ip") or node.get("remote_host") or "未知"
+            country_code = node.get("country") or "未知"
+            country_zh = nodepool_utils.COUNTRY_TRANSLATIONS.get(country_code, country_code)
+            ip_type = node.get("ip_type") or "未知"
+            if ip_type == "residential":
+                ip_type_str = "住宅 IP"
+            elif ip_type == "mobile":
+                ip_type_str = "移动 IP"
+            elif ip_type == "hosting":
+                ip_type_str = "数据中心 IP"
+            else:
+                ip_type_str = ip_type
+            
+            exit_ip = res.get("ip") if res.get("ok") else "无法获取"
+            
+            msg_tg = (
+                f"🔌 <b>节点连接成功</b>\n\n"
+                f"<b>触发原因:</b> {reason}\n"
+                f"<b>节点 ID:</b> <code>{node_id}</code>\n"
+                f"<b>国家/地区:</b> {country_zh} ({country_code})\n"
+                f"<b>节点 IP:</b> <code>{ip_or_host}</code>\n"
+                f"<b>IP 类型:</b> {ip_type_str}\n"
+                f"<b>核心延迟:</b> {latency_str}\n"
+                f"<b>出口 IP:</b> <code>{exit_ip}</code>"
+            )
+            send_telegram_notification(msg_tg)
+        except Exception as tg_ex:
+            print(f"[Telegram发送错误] {tg_ex}", flush=True)
+
         return f"Connected {node_id}"
     except Exception as exc:
         if stopped_existing or (active_openvpn_node_id == node_id and not active_openvpn_running()):
@@ -1765,7 +1839,7 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                             print(f"[维护线程] 检测到固定 IP 模式下 OpenVPN 未运行，正在重新拉起同一节点: {target_id}", flush=True)
                             is_connecting = False
                             try:
-                                connect_node(target_id)
+                                connect_node(target_id, reason="重新拉起固定节点")
                             except Exception as e:
                                 print(f"[维护线程] 重新拉起固定节点 {target_id} 失败: {e}", flush=True)
                             is_connecting = True
@@ -1787,8 +1861,17 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                                     item["active"] = False
                                 write_json(NODES_FILE, nodes)
                             set_state(active_openvpn_node_id="", last_check_message="连接已断开（检测到节点意外退出且已禁用故障自动漂移）")
+                            send_telegram_notification(
+                                f"⚠️ <b>节点异常退出</b>\n\n"
+                                f"<b>状态:</b> 连接已断开\n"
+                                f"<b>提示:</b> 检测到节点意外退出，且已禁用故障自动漂移，代理通道已关闭。"
+                            )
                         else:
                             print("[维护线程] 准备自动切换节点...", flush=True)
+                            send_telegram_notification(
+                                f"🔄 <b>检测到节点异常退出，开始故障切换</b>\n\n"
+                                f"<b>状态:</b> 正在寻找最佳备用节点进行切换..."
+                            )
                             auto_switch_node()
                         is_connecting = True
 
@@ -2118,7 +2201,20 @@ def background_proxy_checker() -> None:
                                     item["active"] = False
                                 write_json(NODES_FILE, nodes)
                             set_state(active_openvpn_node_id="", last_check_message="连接已断开（检测到连接失效且已禁用故障自动漂移）")
+                            send_telegram_notification(
+                                f"⚠️ <b>代理出口连接失效</b>\n\n"
+                                f"<b>原节点 ID:</b> <code>{active_openvpn_node_id}</code>\n"
+                                f"<b>原因:</b> {error_msg}\n"
+                                f"<b>状态:</b> 连接已断开\n"
+                                f"<b>提示:</b> 已关闭自动故障切换，已断开当前连接。"
+                            )
                         else:
+                            send_telegram_notification(
+                                f"🔄 <b>代理连接失效，开始故障切换</b>\n\n"
+                                f"<b>失效节点 ID:</b> <code>{active_openvpn_node_id}</code>\n"
+                                f"<b>原因:</b> {error_msg}\n"
+                                f"<b>状态:</b> 正在寻找最佳备用节点进行切换..."
+                            )
                             with lock:
                                 nodes = read_nodes()
                                 active_node = next((n for n in nodes if n.get("id") == active_openvpn_node_id), None)
@@ -2129,9 +2225,14 @@ def background_proxy_checker() -> None:
                             auto_switch_node()
                     else:
                         print(f"[代理守护线程] 固定 IP 模式下代理不可用，正在尝试重启连接同一节点: {active_openvpn_node_id}", flush=True)
+                        send_telegram_notification(
+                            f"🔄 <b>固定 IP 模式连接失效，正在尝试重启连接</b>\n\n"
+                            f"<b>节点 ID:</b> <code>{active_openvpn_node_id}</code>\n"
+                            f"<b>状态:</b> 正在尝试重新连接同一节点..."
+                        )
                         is_connecting = False
                         try:
-                            connect_node(active_openvpn_node_id)
+                            connect_node(active_openvpn_node_id, reason="代理守护检测重建连接")
                         except Exception as e:
                             print(f"[代理守护线程] 重启固定节点失败: {e}", flush=True)
         except Exception as e:
@@ -2591,6 +2692,9 @@ class Handler(BaseHTTPRequestHandler):
                 new_api_url = str(payload.get("api_url") or "").strip()
                 new_socks5_proxy = str(payload.get("socks5_proxy") or "").strip()
                 auto_failover = bool(payload.get("auto_failover", True))
+                tg_enabled = bool(payload.get("tg_enabled", False))
+                tg_bot_token = str(payload.get("tg_bot_token") or "").strip()
+                tg_chat_id = str(payload.get("tg_chat_id") or "").strip()
                 
                 try:
                     new_proxy_port_int = int(new_proxy_port)
@@ -2633,6 +2737,9 @@ class Handler(BaseHTTPRequestHandler):
                 ui_cfg["api_url"] = new_api_url
                 ui_cfg["socks5_proxy"] = new_socks5_proxy
                 ui_cfg["auto_failover"] = auto_failover
+                ui_cfg["tg_enabled"] = tg_enabled
+                ui_cfg["tg_bot_token"] = tg_bot_token
+                ui_cfg["tg_chat_id"] = tg_chat_id
 
                 
                 auth_file = DATA_DIR / "ui_auth.json"
@@ -2684,6 +2791,42 @@ class Handler(BaseHTTPRequestHandler):
                     auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
                 
                 self.send_json({"ok": True, "message": "出站路由配置更新成功，已即时生效！"})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+
+        elif effective_path == "/api/test_tg":
+            try:
+                payload = self.read_json_body()
+                token = str(payload.get("tg_bot_token") or "").strip()
+                chat_id = str(payload.get("tg_chat_id") or "").strip()
+                if not token or not chat_id:
+                    self.send_json({"ok": False, "error": "TG Bot Token 和 Chat ID 不能为空"}, HTTPStatus.BAD_REQUEST)
+                    return
+                
+                url = f"https://api.telegram.org/bot{token}/sendMessage"
+                test_payload = json.dumps({
+                    "chat_id": chat_id,
+                    "text": "🔔 <b>NodePool 网关 - Telegram 通知测试</b>\n\n如果您收到此消息，说明您的 Telegram 通知配置正确！",
+                    "parse_mode": "HTML"
+                }).encode("utf-8")
+                
+                req = urllib.request.Request(
+                    url,
+                    data=test_payload,
+                    headers={"Content-Type": "application/json", "User-Agent": "nodepool-manager/2.0"},
+                    method="POST"
+                )
+                
+                try:
+                    with urllib.request.urlopen(req, timeout=10) as response:
+                        res_data = json.loads(response.read().decode("utf-8"))
+                        if res_data.get("ok"):
+                            self.send_json({"ok": True, "message": "测试消息已成功发送到 Telegram！"})
+                        else:
+                            self.send_json({"ok": False, "error": f"Telegram API 返回错误: {res_data}"})
+                except Exception as api_err:
+                    self.send_json({"ok": False, "error": f"发送失败: {api_err}"})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
@@ -2746,6 +2889,7 @@ class Handler(BaseHTTPRequestHandler):
                     DATA_DIR.mkdir(exist_ok=True, parents=True)
                     auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
                 
+                old_active_node_id = active_openvpn_node_id
                 stop_active_openvpn()
                 with lock:
                     nodes = read_nodes()
@@ -2756,13 +2900,21 @@ class Handler(BaseHTTPRequestHandler):
                 last_active_ping_time = 0.0
                 last_active_latency = 0
                 set_state(active_openvpn_node_id="", last_check_message="手动断开连接", active_node_latency="无活动连接")
+                
+                if old_active_node_id:
+                    send_telegram_notification(
+                        f"🔌 <b>节点已手动断开</b>\n\n"
+                        f"<b>原节点 ID:</b> <code>{old_active_node_id}</code>\n"
+                        f"<b>状态:</b> 代理出站通道已关闭"
+                    )
+                
                 self.send_json({"ok": True})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         elif effective_path == "/api/connect":
             try:
                 payload = self.read_json_body()
-                self.send_json({"ok": True, "message": connect_node(str(payload.get("id") or ""))})
+                self.send_json({"ok": True, "message": connect_node(str(payload.get("id") or ""), reason="网页手动连接")})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         elif effective_path == "/api/test_node":
