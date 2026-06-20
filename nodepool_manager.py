@@ -1470,15 +1470,25 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
             }
             
         latency = nodepool_utils.ping_latency_ms(h, p, fallback_ping)
-        tun_idx = None
+        ok = False
+        message = "Ping failed"
         tested_speed = 0
-        try:
-            tun_idx = get_free_test_index()
-            dev_name = f"tun{tun_idx}"
-            ok, message, _, tested_speed = run_openvpn_until_ready(str(temp_path), keep_alive=False, route_nopull=True, timeout=12, dev=dev_name)
-        finally:
-            if tun_idx is not None:
-                release_test_index(tun_idx)
+        tun_idx = None
+        
+        if latency > 0:
+            try:
+                tun_idx = get_free_test_index()
+                dev_name = f"tun{tun_idx}"
+                ok, message, _, tested_speed = run_openvpn_until_ready(str(temp_path), keep_alive=False, route_nopull=True, timeout=12, dev=dev_name)
+            finally:
+                if tun_idx is not None:
+                    release_test_index(tun_idx)
+                try:
+                    if temp_path.exists():
+                        temp_path.unlink()
+                except Exception:
+                    pass
+        else:
             try:
                 if temp_path.exists():
                     temp_path.unlink()
@@ -1915,6 +1925,13 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                     merged.append(cand)
                     seen_ids.add(cand["id"])
                     
+            current_nodes = read_nodes()
+            for old_n in current_nodes:
+                if old_n.get("id") not in seen_ids:
+                    if old_n.get("probe_status") in ("available", "not_checked"):
+                        merged.append(old_n)
+                        seen_ids.add(old_n["id"])
+                        
             if len(merged) > 1000:
                 merged = merged[:1000]
                 
@@ -1985,30 +2002,96 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
         maintenance_lock.release()
 
 
+def check_old_nodes_health() -> None:
+    print("[维护线程] 开始对旧的已连接可用节点进行周期性 Ping 测活检测...", flush=True)
+    with lock:
+        nodes = read_nodes()
+    
+    # Select available nodes that are NOT active
+    old_nodes = [n for n in nodes if n.get("probe_status") == "available" and not n.get("active")]
+    if not old_nodes:
+        print("[维护线程] 没有发现需要测活的旧可用节点。", flush=True)
+        return
+        
+    def ping_worker(n_info: dict[str, Any]) -> tuple[str, int]:
+        node_id = n_info["id"]
+        h = str(n_info.get("remote_host") or n_info.get("ip"))
+        p = parse_int(n_info.get("remote_port"))
+        fallback_ping = parse_int(n_info.get("ping"))
+        latency = nodepool_utils.ping_latency_ms(h, p, fallback_ping)
+        return node_id, latency
+
+    updated_status = {}
+    max_workers = min(15, len(old_nodes))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(ping_worker, n): n["id"] for n in old_nodes}
+        for future in concurrent.futures.as_completed(futures):
+            nid = futures[future]
+            try:
+                node_id, latency = future.result()
+                updated_status[node_id] = latency
+            except Exception as e:
+                updated_status[nid] = 0
+
+    with lock:
+        nodes = read_nodes()
+        new_nodes = []
+        removed_count = 0
+        for n in nodes:
+            nid = n.get("id")
+            if nid in updated_status:
+                latency = updated_status[nid]
+                if latency <= 0:
+                    removed_count += 1
+                    continue # Do not add to new_nodes (delete it)
+                else:
+                    n["latency_ms"] = latency
+                    n["probed_at"] = time.time()
+            new_nodes.append(n)
+        
+        if removed_count > 0:
+            print(f"[维护线程] 周期性测活清理完成，共移除了 {removed_count} 个已失效的旧可用节点。", flush=True)
+            log_to_json("INFO", "Main", f"周期性测活清理完成，移除了 {removed_count} 个已失效的旧可用节点。")
+            write_json(NODES_FILE, new_nodes)
+        else:
+            print("[维护线程] 周期性测活完成，所有旧节点依然通畅。", flush=True)
+
+
 def collector_loop() -> None:
     global last_collector_heartbeat
+    last_fetch_time = 0.0
+    last_health_check_time = 0.0
+    
+    # 稍微延迟启动，给系统预留一些时间
+    time.sleep(5)
+    
     while True:
         last_collector_heartbeat = time.time()
-        success = False
-        try:
-            print("[守护线程] 开始执行节点拉取与可用性检测周期任务...", flush=True)
-            log_to_json("INFO", "Main", "开始执行节点拉取与可用性检测周期任务...")
-            res = maintain_valid_nodes(force=False, is_manual=False)
-            if "没有拉取到新节点" not in res:
-                success = True
-            log_to_json("INFO", "Main", f"周期同步与检测任务完成，结果: {res}")
-        except Exception as exc:
-            err_msg = f"周期节点同步任务执行异常: {exc}"
-            print(f"[错误] {err_msg}", flush=True)
-            log_to_json("ERROR", "Main", err_msg)
-            set_state(last_check_at=time.time(), last_check_message=f"check error: {exc}")
-            
-        if not active_openvpn_running() and not success:
-            sleep_time = 30
-        else:
-            sleep_time = CHECK_INTERVAL_SECONDS
-            
-        time.sleep(sleep_time)
+        now = time.time()
+        
+        # 1. 每 1 小时 (3600秒) 执行一次拉取新节点和测活任务 (首轮启动立刻拉取)
+        if now - last_fetch_time >= 3600:
+            last_fetch_time = now
+            try:
+                print("[守护线程] 开始执行节点拉取与测活任务...", flush=True)
+                log_to_json("INFO", "Main", "开始周期性拉取并测试新节点...")
+                res = maintain_valid_nodes(force=False, is_manual=False)
+                log_to_json("INFO", "Main", f"周期同步任务完成: {res}")
+            except Exception as exc:
+                print(f"[错误] 周期节点同步任务异常: {exc}", flush=True)
+                log_to_json("ERROR", "Main", f"周期节点同步任务异常: {exc}")
+                
+        # 2. 每 30 分钟 (1800秒) 执行一次旧节点 Ping 探测与清理 (首轮启动立即检测)
+        if now - last_health_check_time >= 1800:
+            last_health_check_time = now
+            try:
+                check_old_nodes_health()
+            except Exception as exc:
+                print(f"[错误] 周期旧节点测活任务异常: {exc}", flush=True)
+                log_to_json("ERROR", "Main", f"周期旧节点测活任务异常: {exc}")
+                
+        # 3. 循环等待 10 秒以保持高频心跳和响应
+        time.sleep(10)
 
 def load_html_file(filename: str) -> str:
     path = Path(__file__).parent / "web" / filename
