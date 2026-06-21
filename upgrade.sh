@@ -12,7 +12,11 @@ NC='\033[0m' # No Color
 echo -e "${YELLOW}[开始升级] 正在获取最新代码并重启服务...${NC}"
 
 # 确保在项目根目录
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+    SCRIPT_DIR="/root/nodepool"
+fi
 cd "$SCRIPT_DIR"
 
 # 检查当前是否为 git 仓库
