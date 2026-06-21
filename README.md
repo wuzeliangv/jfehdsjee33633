@@ -11,8 +11,7 @@
 - 节点检测：批量测试节点连通性、延迟、速度与出口 IP 类型。
 - 节点连接：通过 OpenVPN 连接指定节点，并维护当前活动节点状态。
 - 本地代理：提供 HTTP / SOCKS5 代理接口，默认监听 `127.0.0.1:7928`。
-- 出站策略：支持自动配置、固定 IP、固定地区、收藏节点优先等模式。
-- 节点收藏：支持收藏常用节点，并可配置收藏失效后的回退策略。
+- 出站策略：支持自动配置、固定 IP、固定地区等模式。
 - 系统日志：在 Web 后台查看运行日志、连接日志和错误信息。
 - 自诊断：检测本地代理端口、OpenVPN 状态、虚拟网卡、DNS 与常见网络错误。
 - systemd 托管：支持开机自启、崩溃自动重启和标准日志查看。
@@ -179,8 +178,6 @@ nodepool_data/ui_auth.json
 | `routing_mode` | 出站路由模式 |
 | `force_country` | 固定地区模式下的目标国家或地区 |
 | `routing_ip_type` | 出站 IP 类型过滤 |
-| `favorite_node_ids` | 收藏节点 ID 列表 |
-| `fav_fail_fallback` | 收藏节点失效后是否回退到其他可用节点 |
 | `api_url` | 节点 API 地址或镜像源地址 |
 
 运行状态文件：
@@ -338,15 +335,32 @@ tail -f nodepool_data/nodepool.log
 - `nodepool_data/nodes.json` 不存在或为空。
 - 节点 API 拉取失败。
 
-## 更新项目
+## 更新与升级
+
+### 一键升级最新版
+
+如果您已经使用默认路径部署，可以在终端直接运行以下一键升级命令：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vzzoxo/personal-nodepool-gateway/main/upgrade.sh | bash
+```
+
+或者进入项目目录运行本地的升级脚本：
+
+```bash
+cd /root/nodepool && ./upgrade.sh
+```
+
+### 手动更新
+
+也可以手动拉取最新代码并重启：
 
 ```bash
 cd /root/nodepool
-git pull
+git fetch --all
+git reset --hard origin/main
 systemctl restart nodepool.service
 ```
-
-如果部署目录不同，请替换路径。
 
 ## 卸载
 
