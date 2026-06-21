@@ -37,7 +37,7 @@ python3 -c "import py_compile; py_compile.compile('nodepool_manager.py', doraise
 
 # 重启 nodepool.service
 echo -e "${YELLOW}[3/3] 正在重启 nodepool.service 服务...${NC}"
-if systemctl list-unit-files | grep -q "nodepool.service"; then
+if [ -f "/etc/systemd/system/nodepool.service" ] || systemctl list-unit-files | grep -q "nodepool.service"; then
     systemctl restart nodepool.service
     sleep 2
     if systemctl is-active nodepool.service >/dev/null 2>&1; then
