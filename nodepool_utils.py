@@ -432,7 +432,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
                     ip_type = "residential"
                     if item.get("mobile"):
                         ip_type = "mobile"
-                    elif item.get("hosting") or item.get("proxy"):
+                    elif item.get("hosting"):
                         ip_type = "hosting"
 
                     quality = "normal"
