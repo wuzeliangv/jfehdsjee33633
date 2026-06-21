@@ -129,6 +129,7 @@ UPSTREAM_PROXY_AUTH_FILE = DATA_DIR / "upstream_proxy_auth.txt"
 BLACKLIST_FILE = DATA_DIR / "blacklist.json"
 SESSIONS_FILE = DATA_DIR / "sessions.json"
 HISTORY_FILE = DATA_DIR / "history.json"
+IP_TYPE_CACHE_FILE = DATA_DIR / "ip_type_cache.json"
 
 
 lock = threading.RLock()
@@ -831,6 +832,165 @@ def mark_blacklisted(node: dict[str, Any], message: str) -> None:
         "until": now + INVALID_BACKOFF_SECONDS,
     }
     write_json(BLACKLIST_FILE, blacklist)
+
+# --------------- IP 类型检测 (住宅/机房) ---------------
+
+def _load_ip_type_cache() -> dict[str, str]:
+    """加载本地 IP 类型缓存"""
+    return read_json(IP_TYPE_CACHE_FILE, {})
+
+def _save_ip_type_cache(cache: dict[str, str]) -> None:
+    """保存 IP 类型缓存"""
+    write_json(IP_TYPE_CACHE_FILE, cache)
+
+def detect_ip_types_batch(ips: list[str]) -> dict[str, str]:
+    """批量检测 IP 类型（住宅/机房）。
+    
+    使用 ip-api.com 批量接口（POST /batch，每批最多 100 个 IP）。
+    返回 {ip: 'residential' | 'hosting'} 映射。
+    查询失败的 IP 不会出现在返回结果中。
+    """
+    if not ips:
+        return {}
+    
+    cache = _load_ip_type_cache()
+    results: dict[str, str] = {}
+    uncached: list[str] = []
+    
+    for ip in ips:
+        if ip in cache:
+            results[ip] = cache[ip]
+        else:
+            uncached.append(ip)
+    
+    if not uncached:
+        log_to_json("INFO", "IPDetect", f"全部 {len(ips)} 个 IP 命中本地缓存，跳过远程检测")
+        return results
+    
+    log_to_json("INFO", "IPDetect", f"需要远程检测 {len(uncached)} 个 IP（{len(results)} 个已命中缓存）")
+    
+    # ip-api.com 批量接口: POST http://ip-api.com/batch
+    # 每批最多 100 个 IP, 限速 15 次/分钟
+    BATCH_SIZE = 100
+    for i in range(0, len(uncached), BATCH_SIZE):
+        batch = uncached[i:i + BATCH_SIZE]
+        payload = json.dumps([
+            {"query": ip, "fields": "query,hosting,isp,org"}
+            for ip in batch
+        ]).encode("utf-8")
+        
+        try:
+            req = urllib.request.Request(
+                "http://ip-api.com/batch",
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0 nodepool-openvpn-manager/2.0",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="replace"))
+            
+            for item in data:
+                ip = item.get("query", "")
+                if not ip:
+                    continue
+                if item.get("hosting", False):
+                    ip_type = "hosting"
+                else:
+                    ip_type = "residential"
+                results[ip] = ip_type
+                cache[ip] = ip_type
+            
+            batch_residential = sum(1 for ip in batch if results.get(ip) == "residential")
+            batch_hosting = sum(1 for ip in batch if results.get(ip) == "hosting")
+            log_to_json("INFO", "IPDetect", f"批量检测完成: {len(batch)} 个 IP (住宅: {batch_residential}, 机房: {batch_hosting})")
+            
+        except Exception as e:
+            print(f"[IP类型检测] 批量检测失败: {e}", flush=True)
+            log_to_json("WARNING", "IPDetect", f"ip-api.com 批量检测失败: {e}")
+            # 备用方案: 逐个使用 ipapi.is 查询
+            for ip in batch:
+                if ip in results:
+                    continue
+                try:
+                    fallback_type = _detect_ip_type_fallback(ip)
+                    if fallback_type:
+                        results[ip] = fallback_type
+                        cache[ip] = fallback_type
+                except Exception:
+                    pass
+        
+        # 批次间等待，避免触发限速 (15次/分钟)
+        if i + BATCH_SIZE < len(uncached):
+            time.sleep(4.5)
+    
+    # 保存缓存
+    _save_ip_type_cache(cache)
+    return results
+
+def _detect_ip_type_fallback(ip: str) -> str | None:
+    """使用 ipapi.is 作为备用单 IP 检测"""
+    try:
+        req = urllib.request.Request(
+            f"https://api.ipapi.is/?q={ip}",
+            headers={"User-Agent": "Mozilla/5.0 nodepool-openvpn-manager/2.0"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        if data.get("is_datacenter", False):
+            return "hosting"
+        return "residential"
+    except Exception as e:
+        print(f"[IP类型检测] ipapi.is 备用检测 {ip} 失败: {e}", flush=True)
+        return None
+
+
+def filter_candidates_by_ip_type(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """过滤候选节点: 只保留住宅 IP, 丢弃机房 IP。
+    
+    检测失败的节点会被保留（优雅降级，不因检测失败而丢失节点）。
+    返回过滤后的列表, 每个节点的 ip_type 字段会被更新。
+    """
+    if not candidates:
+        return candidates
+    
+    # 收集需要检测的 IP
+    ip_list = []
+    for c in candidates:
+        ip = c.get("ip") or c.get("remote_host", "")
+        if ip:
+            ip_list.append(ip)
+    
+    if not ip_list:
+        return candidates
+    
+    print(f"[IP类型检测] 开始检测 {len(ip_list)} 个节点的 IP 类型...", flush=True)
+    log_to_json("INFO", "IPDetect", f"开始批量 IP 类型检测, 共 {len(ip_list)} 个 IP")
+    
+    ip_types = detect_ip_types_batch(ip_list)
+    
+    filtered = []
+    discarded_count = 0
+    for c in candidates:
+        ip = c.get("ip") or c.get("remote_host", "")
+        ip_type = ip_types.get(ip, "")
+        c["ip_type"] = ip_type
+        
+        if ip_type == "hosting":
+            discarded_count += 1
+            continue  # 丢弃机房 IP
+        
+        # 住宅 IP 或检测失败的（ip_type 为空）都保留
+        filtered.append(c)
+    
+    msg = f"IP 类型检测完成: 总计 {len(candidates)} 个, 住宅 {len(filtered)} 个, 机房 {discarded_count} 个已丢弃"
+    print(f"[IP类型检测] {msg}", flush=True)
+    log_to_json("INFO", "IPDetect", msg)
+    
+    return filtered
+
 
 def row_to_node(row: dict[str, str], config_text: str) -> dict[str, Any]:
     ip = row.get("IP", "")
@@ -1907,6 +2067,15 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
         if not candidates:
             return "没有拉取到新节点"
 
+        # IP 类型过滤: 只保留住宅 IP, 丢弃机房 IP
+        ui_cfg_filter = load_ui_config()
+        if ui_cfg_filter.get("ip_type_filter", True):  # 默认开启
+            set_state(last_check_message="正在检测节点 IP 类型（住宅/机房）...")
+            candidates = filter_candidates_by_ip_type(candidates)
+            if not candidates:
+                set_state(last_check_message="所有拉取到的节点均为机房 IP，已全部过滤")
+                return "所有拉取到的节点均为机房 IP，已全部过滤"
+
         with lock:
             active_node = None
             if active_openvpn_node_id:
@@ -1960,19 +2129,19 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                     if n.get("country") == target_country 
                     or nodepool_utils.COUNTRY_TRANSLATIONS.get(n.get("country", ""), n.get("country", "")) == target_country
                 ]
-                # Test all untested nodes of this country (up to 30 nodes to avoid overload)
-                to_test_ids = [n["id"] for n in country_untested[:30]]
+                # Test all untested nodes of this country
+                to_test_ids = [n["id"] for n in country_untested]
                 msg = f"已开启固定地区模式【{target_country}】，正在后台测试该国家的所有待检测节点 (共 {len(to_test_ids)} 个)..."
             elif routing_mode == "favorites":
                 # Prioritize testing favorite nodes
                 fav_ids = set(ui_cfg.get("favorite_node_ids", []))
                 fav_untested = [n for n in untested if n["id"] in fav_ids]
                 other_untested = [n for n in untested if n["id"] not in fav_ids]
-                to_test_ids = [n["id"] for n in (fav_untested + other_untested)[:15]]
+                to_test_ids = [n["id"] for n in (fav_untested + other_untested)]
                 msg = f"已开启收藏节点模式，优先在后台测试收藏的待检测节点 (共 {len(to_test_ids)} 个)..."
             else:
-                # Auto mode: test top 15 nodes
-                to_test_ids = [n["id"] for n in untested[:15]]
+                # Auto mode: test all untested nodes
+                to_test_ids = [n["id"] for n in untested]
                 msg = f"自动路由模式，正在后台测试排在前列的待检测节点 (共 {len(to_test_ids)} 个)..."
 
             if to_test_ids:
