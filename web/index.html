@@ -1056,38 +1056,6 @@
       一键测速
     </button>
   </section>
-  <div id="favorites_panel" style="display: none; background: rgba(22, 30, 49, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; margin-bottom: 20px; animation: modalFadeIn 0.25s ease-out;">
-    <div style="display: flex; flex-direction: column; gap: 16px;">
-      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          <span style="font-size: 15px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
-            ⭐ 收藏专属管理面板
-          </span>
-          <span style="font-size: 13px; color: var(--text-secondary);">
-            在这里管理您的收藏节点过滤，以及设置出站连接漂移策略。
-          </span>
-        </div>
-        <div style="display: flex; gap: 12px; align-items: center;">
-          <button id="btn_toggle_fav_routing" type="button" class="toolbar-btn" style="height: 36px; padding: 0 14px; font-size: 13px; border-radius: 6px;" onclick="toggleFavRouting()">
-            启用仅用收藏出站
-          </button>
-        </div>
-      </div>
-      
-      <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px;">
-        <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none;">
-          <input type="checkbox" id="fav_fail_fallback_checkbox" style="margin-top: 3px; cursor: pointer;" onchange="handleFavFallbackChange(this.checked)" checked />
-          <div style="display: flex; flex-direction: column; gap: 2px;">
-            <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">收藏节点失效后自动切换其他（非收藏）可用节点</span>
-            <span style="font-size: 12px; color: var(--text-secondary);">勾选此项，当所有收藏节点不可用时，系统将自动使用其他最快的非收藏可用节点，保障网络连接不中断。</span>
-          </div>
-        </label>
-        <div id="fav_fallback_warning" style="display: none; margin-top: 12px; padding: 10px 14px; background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.25); border-radius: 8px; font-size: 12px; color: var(--danger); line-height: 1.4; animation: modalFadeIn 0.2s ease-out;">
-          ⚠️ <strong>警告</strong>：您已取消勾选此项。如果当前收藏的节点均不可用，系统将<strong>无法切换</strong>到其他可用节点，可能导致网络<strong>彻底断开连接</strong>！
-        </div>
-      </div>
-    </div>
-  </div>
 
   <div class="table-wrapper">
     <div class="table-container">
@@ -2139,10 +2107,6 @@ function getFilteredNodes() {
         return false;
       }
     }
-    const favoriteIds = Array.isArray(state.favorite_node_ids) ? state.favorite_node_ids : [];
-    if (showFavoritesOnly && !favoriteIds.includes(n.id)) {
-      return false;
-    }
     return true;
   });
 }
@@ -2308,7 +2272,7 @@ function render(){
     }
   }
 
-  updateFavPanelUI();
+
 
   // Pagination calculation
   const totalPages = Math.ceil(shown.length / pageSize) || 1;
@@ -2419,24 +2383,6 @@ async function testNode(btn, id, event){
   } finally {
     testingNodeIds.delete(id);
     render();
-  }
-}
-
-async function toggleFavorite(id, event) {
-  if (event) event.stopPropagation();
-  try {
-    const response = await fetch("./api/toggle_favorite", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id })
-    });
-    const result = await response.json();
-    if (result.ok) {
-      state.favorite_node_ids = Array.isArray(result.favorite_node_ids) ? result.favorite_node_ids : [];
-      render();
-    }
-  } catch (e) {
-    console.error("切换收藏失败", e);
   }
 }
 
@@ -2636,14 +2582,6 @@ $("btn_test_proxy").onclick = async () => {
 
 
 
-let showFavoritesOnly = false;
-
-function toggleFavoritesView() {
-  showFavoritesOnly = !showFavoritesOnly;
-  currentPage = 1;
-  render();
-}
-
 async function runSpeedTest() {
   const btn = $("btn_speed_test");
   const shown = getFilteredNodes();
@@ -2695,114 +2633,7 @@ async function runSpeedTest() {
   }
 }
 
-function updateFavPanelUI() {
-  const panel = $("favorites_panel");
-  if (!panel) return;
-  panel.style.display = showFavoritesOnly ? "block" : "none";
-  
-  const btn = $("btn_favorites");
-  if (btn) {
-    if (showFavoritesOnly) {
-      btn.classList.add("active");
-    } else {
-      btn.classList.remove("active");
-    }
-  }
 
-  if (showFavoritesOnly && state) {
-    const fallbackCheckbox = $("fav_fail_fallback_checkbox");
-    if (fallbackCheckbox) {
-      fallbackCheckbox.checked = !!state.fav_fail_fallback;
-    }
-    
-    const warningDiv = $("fav_fallback_warning");
-    if (warningDiv) {
-      warningDiv.style.display = state.fav_fail_fallback ? "none" : "block";
-    }
-
-    const favRoutingBtn = $("btn_toggle_fav_routing");
-    if (favRoutingBtn) {
-      if (state.routing_mode === "favorites") {
-        favRoutingBtn.textContent = "禁用仅用收藏出站";
-        favRoutingBtn.style.background = "var(--danger-gradient)";
-        favRoutingBtn.style.borderColor = "transparent";
-        favRoutingBtn.style.color = "#ffffff";
-        favRoutingBtn.style.boxShadow = "0 0 12px rgba(244, 63, 94, 0.3)";
-      } else {
-        favRoutingBtn.textContent = "启用仅用收藏出站";
-        favRoutingBtn.style.background = "rgba(255,255,255,0.03)";
-        favRoutingBtn.style.borderColor = "var(--border-color)";
-        favRoutingBtn.style.color = "var(--text-primary)";
-        favRoutingBtn.style.boxShadow = "none";
-      }
-    }
-  }
-}
-
-async function toggleFavRouting() {
-  if (!state) return;
-  const newMode = state.routing_mode === "favorites" ? "auto" : "favorites";
-  
-  state.routing_mode = newMode;
-  updateFavPanelUI();
-  
-  try {
-    const res = await fetch("./api/update_routing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        routing_mode: newMode,
-        force_country: state.force_country || "",
-        routing_ip_type: state.routing_ip_type || "all",
-        fav_fail_fallback: state.fav_fail_fallback !== false
-      })
-    });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      load();
-    } else {
-      alert("更新出站路由设置失败: " + (data.error || "未知错误"));
-      load();
-    }
-  } catch (err) {
-    alert("连接服务器失败，请稍后重试");
-    load();
-  }
-}
-
-async function handleFavFallbackChange(checked) {
-  if (!state) return;
-  
-  if (!checked) {
-    alert("⚠️ 警告：不勾选此项可能在所有收藏节点失效时造成网络彻底断开连接，无法自动切换到其他非收藏的可用节点！");
-  }
-  
-  state.fav_fail_fallback = checked;
-  updateFavPanelUI();
-  
-  try {
-    const res = await fetch("./api/update_routing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        routing_mode: state.routing_mode || "auto",
-        force_country: state.force_country || "",
-        routing_ip_type: state.routing_ip_type || "all",
-        fav_fail_fallback: checked
-      })
-    });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      load();
-    } else {
-      alert("更新失败: " + (data.error || "未知错误"));
-      load();
-    }
-  } catch (err) {
-    alert("连接服务器失败，请稍后重试");
-    load();
-  }
-}
 
 function selectOptionCard(groupName, value) {
   if (groupName === 'routing_mode') {
@@ -2852,12 +2683,6 @@ function handleRoutingModeChange(mode) {
     warningDiv.style.background = "rgba(245, 158, 11, 0.1)";
     warningDiv.style.border = "1px solid rgba(245, 158, 11, 0.2)";
     warningDiv.innerHTML = `⚠️ <strong>固定地区</strong>：限制仅连接选定国家的节点，且后台仅并发测速该国家的节点。如果该国的所有可用节点都失效，会造成代理中断且<strong>绝不自动切换到其他国家</strong>的节点。`;
-  } else if (mode === "favorites") {
-    countryGroup.style.display = "none";
-    warningDiv.style.color = "var(--warning)";
-    warningDiv.style.background = "rgba(245, 158, 11, 0.1)";
-    warningDiv.style.border = "1px solid rgba(245, 158, 11, 0.2)";
-    warningDiv.innerHTML = `⚠️ <strong>仅用收藏</strong>：只连接和切换您收藏的节点。如果所有收藏的节点均失效，系统不会自动切换到未收藏的节点。请确保收藏列表中有足够多且可用的节点。`;
   } else if (mode === "fixed_ip") {
     countryGroup.style.display = "none";
     warningDiv.style.color = "var(--warning)";

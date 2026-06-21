@@ -277,8 +277,6 @@ def load_ui_config() -> dict[str, Any]:
             "routing_ip_type": "all",
             "connection_enabled": True,
             "fixed_node_id": "",
-            "favorite_node_ids": [],
-            "fav_fail_fallback": True,
             "api_url": "https://www.vpngate.net/api/iphone/",
             "socks5_proxy": "",
             "auto_failover": True,
@@ -292,7 +290,7 @@ def load_ui_config() -> dict[str, Any]:
                 data = json.loads(auth_file.read_text(encoding="utf-8"))
                 for key, val in data.items():
                     config[key] = val
-                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "api_url", "socks5_proxy", "auto_failover", "tg_enabled", "tg_bot_token", "tg_chat_id"]:
+                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "api_url", "socks5_proxy", "auto_failover", "tg_enabled", "tg_bot_token", "tg_chat_id"]:
                     if key not in data:
                         updated = True
             except Exception:
@@ -458,8 +456,6 @@ def get_state() -> dict[str, Any]:
     state["socks5_proxy"] = ui_cfg.get("socks5_proxy", "")
     state["connection_enabled"] = ui_cfg.get("connection_enabled", True)
     state["fixed_node_id"] = ui_cfg.get("fixed_node_id", "")
-    state["favorite_node_ids"] = ui_cfg.get("favorite_node_ids", [])
-    state["fav_fail_fallback"] = ui_cfg.get("fav_fail_fallback", True)
     state["auto_failover"] = ui_cfg.get("auto_failover", True)
     state["tg_enabled"] = ui_cfg.get("tg_enabled", False)
     state["tg_bot_token"] = ui_cfg.get("tg_bot_token", "")
@@ -1763,16 +1759,6 @@ def auto_switch_node(attempt: int = 0) -> None:
                 if n.get("country") == target_country 
                 or nodepool_utils.COUNTRY_TRANSLATIONS.get(n.get("country", ""), n.get("country", "")) == target_country
             ]
-        if routing_mode == "favorites":
-            fav_ids = set(ui_cfg.get("favorite_node_ids", []))
-            fav_candidates = [n for n in candidates if n.get("id") in fav_ids]
-            if fav_candidates:
-                candidates = fav_candidates
-            else:
-                fav_fail_fallback = ui_cfg.get("fav_fail_fallback", True)
-                if not fav_fail_fallback:
-                    candidates = []
-            
         # Apply routing_ip_type filter
         routing_ip_type = ui_cfg.get("routing_ip_type", "all")
         if routing_ip_type == "residential":
@@ -2132,13 +2118,6 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                 # Test all untested nodes of this country
                 to_test_ids = [n["id"] for n in country_untested]
                 msg = f"已开启固定地区模式【{target_country}】，正在后台测试该国家的所有待检测节点 (共 {len(to_test_ids)} 个)..."
-            elif routing_mode == "favorites":
-                # Prioritize testing favorite nodes
-                fav_ids = set(ui_cfg.get("favorite_node_ids", []))
-                fav_untested = [n for n in untested if n["id"] in fav_ids]
-                other_untested = [n for n in untested if n["id"] not in fav_ids]
-                to_test_ids = [n["id"] for n in (fav_untested + other_untested)]
-                msg = f"已开启收藏节点模式，优先在后台测试收藏的待检测节点 (共 {len(to_test_ids)} 个)..."
             else:
                 # Auto mode: test all untested nodes
                 to_test_ids = [n["id"] for n in untested]
@@ -2973,7 +2952,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json({"ok": False, "error": "代理出站端口范围必须是 1024 至 65535"}, HTTPStatus.BAD_REQUEST)
                     return
                 
-                if routing_mode not in ("auto", "fixed_ip", "fixed_region", "favorites"):
+                if routing_mode not in ("auto", "fixed_ip", "fixed_region"):
                     self.send_json({"ok": False, "error": "无效的路由配置模式"}, HTTPStatus.BAD_REQUEST)
                     return
                 if routing_ip_type not in ("all", "residential", "hosting"):
@@ -3032,37 +3011,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
-        elif effective_path == "/api/update_routing":
-            try:
-                payload = self.read_json_body()
-                routing_mode = str(payload.get("routing_mode") or "auto").strip()
-                force_country = str(payload.get("force_country") or "").strip()
-                routing_ip_type = str(payload.get("routing_ip_type") or "all").strip()
-                fav_fail_fallback = bool(payload.get("fav_fail_fallback", True))
-                
-                if routing_mode not in ("auto", "fixed_ip", "fixed_region", "favorites"):
-                    self.send_json({"ok": False, "error": "无效的路由配置模式"}, HTTPStatus.BAD_REQUEST)
-                    return
-                if routing_ip_type not in ("all", "residential", "hosting"):
-                    self.send_json({"ok": False, "error": "无效的IP出站类型过滤"}, HTTPStatus.BAD_REQUEST)
-                    return
-                
-                ui_cfg = load_ui_config()
-                ui_cfg["routing_mode"] = routing_mode
-                ui_cfg["force_country"] = force_country
-                ui_cfg["routing_ip_type"] = routing_ip_type
-                ui_cfg["fav_fail_fallback"] = fav_fail_fallback
-                ui_cfg.pop("enable_force_country", None)
-                
-                auth_file = DATA_DIR / "ui_auth.json"
-                with lock:
-                    DATA_DIR.mkdir(exist_ok=True, parents=True)
-                    auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
-                
-                self.send_json({"ok": True, "message": "出站路由配置更新成功，已即时生效！"})
-            except Exception as exc:
-                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
-            return
+
 
         elif effective_path == "/api/test_tg":
             try:
@@ -3100,31 +3049,6 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
-        elif effective_path == "/api/toggle_favorite":
-            try:
-                payload = self.read_json_body()
-                node_id = str(payload.get("id") or "").strip()
-                
-                ui_cfg = load_ui_config()
-                fav_ids = ui_cfg.get("favorite_node_ids", [])
-                if not isinstance(fav_ids, list):
-                    fav_ids = []
-                
-                if node_id in fav_ids:
-                    fav_ids.remove(node_id)
-                else:
-                    fav_ids.append(node_id)
-                
-                ui_cfg["favorite_node_ids"] = fav_ids
-                auth_file = DATA_DIR / "ui_auth.json"
-                with lock:
-                    DATA_DIR.mkdir(exist_ok=True, parents=True)
-                    auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
-                
-                self.send_json({"ok": True, "favorite_node_ids": fav_ids})
-            except Exception as exc:
-                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
-            return
 
         if effective_path == "/api/check":
             try:
