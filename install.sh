@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULT_REPO_URL="https://github.com/vzzoxo/personal-nodepool-gateway.git"
+DEFAULT_REPO_URL="https://github.com/wuzeliangv/NodePool.git"
 REPO_URL="${REPO_URL:-${DEFAULT_REPO_URL}}"
 PROJECT_DIR="/root/nodepool"
 SERVICE_FILE="/etc/systemd/system/nodepool.service"
@@ -340,7 +340,7 @@ fi
 # Write systemd service file
 cat > "${SERVICE_FILE}" <<EOF
 [Unit]
-Description=Personal NodePool Gateway
+Description=NodePool Gateway
 After=network-online.target
 Wants=network-online.target
 

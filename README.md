@@ -1,4 +1,4 @@
-# Personal NodePool Gateway
+# NodePool
 
 一个自用的 NodePool / OpenVPN 出站代理管理面板，用于拉取免费 OpenVPN 节点、检测节点可用性、连接指定节点，并在本机提供 HTTP / SOCKS5 代理出口。
 
@@ -45,7 +45,7 @@
 直接在终端执行官方一键部署脚本：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/personal-nodepool-gateway/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/wuzeliangv/NodePool/main/install.sh)
 ```
 
 - **默认安装目录**：`/root/nodepool`
@@ -124,7 +124,7 @@ curl --proxy http://127.0.0.1:10010 https://api.ipify.org
 如果您使用默认路径部署，可以在终端直接运行一键升级脚本。脚本会自动拉取最新代码、对代码进行语法安全检查，并安全重启 systemd 服务：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vzzoxo/personal-nodepool-gateway/main/upgrade.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wuzeliangv/NodePool/main/upgrade.sh | bash
 ```
 
 ### 2. 本地执行升级
