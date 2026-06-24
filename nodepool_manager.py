@@ -2287,12 +2287,13 @@ def check_old_nodes_health() -> None:
                     n["fetched_at"] = time.time()
             new_nodes.append(n)
         
-        if removed_count > 0:
-            print(f"[维护线程] 周期性测活清理完成，共移除了 {removed_count} 个已失效的旧可用节点。", flush=True)
-            log_to_json("INFO", "Main", f"周期性测活清理完成，移除了 {removed_count} 个已失效的旧可用节点。")
+        if updated_status:
             write_json(NODES_FILE, new_nodes)
-        else:
-            print("[维护线程] 周期性测活完成，所有旧节点依然通畅。", flush=True)
+            if removed_count > 0:
+                print(f"[维护线程] 周期性测活清理完成，共移除了 {removed_count} 个已失效的旧可用节点。", flush=True)
+                log_to_json("INFO", "Main", f"周期性测活清理完成，移除了 {removed_count} 个已失效的旧可用节点。")
+            else:
+                print("[维护线程] 周期性测活完成，所有旧节点依然通畅，已更新延迟及时间信息。", flush=True)
 
 
 def collector_loop() -> None:
