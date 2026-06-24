@@ -175,30 +175,12 @@ if [ -t 0 ] || [ -c /dev/tty ]; then
   IS_INTERACTIVE=true
 fi
 
-WEB_PORT=8787
-PROXY_PORT=7928
+WEB_PORT=12345
+PROXY_PORT=10010
 AUTH_FILE="${PROJECT_DIR}/nodepool_data/ui_auth.json"
-AUTO_USER=""
-AUTO_PASS=""
-AUTO_SECRET=""
-
-# Generate defaults using Python
-if command -v python3 >/dev/null 2>&1; then
-  read -r AUTO_USER AUTO_PASS AUTO_SECRET < <(python3 -c '
-import random, string
-chars = string.ascii_letters + string.digits
-def gen():
-    while True:
-        s = "".join(random.choices(chars, k=12))
-        if s[0].isalpha() and any(c.islower() for c in s) and any(c.isupper() for c in s) and any(c.isdigit() for c in s):
-            return s
-print(f"{gen()} {gen()} {gen()}")
-' 2>/dev/null)
-fi
-
-[ -z "$AUTO_USER" ] && AUTO_USER="admin123"
-[ -z "$AUTO_PASS" ] && AUTO_PASS="Admin123!"
-[ -z "$AUTO_SECRET" ] && AUTO_SECRET="secret123"
+AUTO_USER="huanggang"
+AUTO_PASS="250564560"
+AUTO_SECRET="oba"
 
 # Load existing values if config file exists
 if [ -f "${AUTH_FILE}" ] && command -v python3 >/dev/null 2>&1; then
