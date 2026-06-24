@@ -1626,6 +1626,7 @@ def test_node_by_id(node_id: str) -> dict[str, Any]:
                 node["probe_status"] = "available"
                 node["probe_message"] = message
                 node["probed_at"] = time.time()
+                node["fetched_at"] = time.time()
                 node["owner"] = temp_node["owner"]
                 node["asn"] = temp_node["asn"]
                 node["as_name"] = temp_node["as_name"]
@@ -1726,6 +1727,8 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
             "ip_type": "",
             "quality": "",
         }
+        if ok:
+            temp_node["fetched_at"] = time.time()
         if tested_speed > 0:
             temp_node["speed"] = tested_speed
         return temp_node
@@ -2130,16 +2133,32 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
             merged: list[dict[str, Any]] = []
             seen_ids: set[str] = set()
             
+            current_nodes = read_nodes()
+            current_nodes_map = {n["id"]: n for n in current_nodes}
+            
             if active_node:
+                if any(cand["id"] == active_node["id"] for cand in candidates):
+                    active_node["fetched_at"] = time.time()
                 merged.append(active_node)
                 seen_ids.add(active_node["id"])
                 
             for cand in candidates:
-                if cand["id"] not in seen_ids:
+                cand_id = cand["id"]
+                if cand_id not in seen_ids:
+                    if cand_id in current_nodes_map:
+                        old_n = current_nodes_map[cand_id]
+                        if old_n.get("probe_status") == "available":
+                            cand["probe_status"] = "available"
+                            cand["probe_message"] = old_n.get("probe_message", "")
+                            cand["probed_at"] = old_n.get("probed_at", 0)
+                            cand["latency_ms"] = old_n.get("latency_ms", 0)
+                            for field in ["owner", "asn", "as_name", "location", "ip_type", "quality"]:
+                                if field in old_n:
+                                    cand[field] = old_n[field]
+                        cand["fetched_at"] = time.time()
                     merged.append(cand)
-                    seen_ids.add(cand["id"])
+                    seen_ids.add(cand_id)
                     
-            current_nodes = read_nodes()
             for old_n in current_nodes:
                 if old_n.get("id") not in seen_ids:
                     if old_n.get("probe_status") in ("available", "not_checked"):
@@ -2255,6 +2274,7 @@ def check_old_nodes_health() -> None:
                 else:
                     n["latency_ms"] = latency
                     n["probed_at"] = time.time()
+                    n["fetched_at"] = time.time()
             new_nodes.append(n)
         
         if removed_count > 0:
