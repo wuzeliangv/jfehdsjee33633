@@ -401,6 +401,65 @@ def read_nodes() -> list[dict[str, Any]]:
         return []
     return [item for item in raw if isinstance(item, dict)]
 
+def prune_old_nodes() -> None:
+    """
+    If the user has selected a locked region (fixed_region) in UI settings,
+    and the number of nodes for that country/region in the database exceeds 50,
+    prune those that have been in the database (fetched_at) for more than 15 days.
+    Never prune the currently active node to prevent connection loss.
+    """
+    global active_openvpn_node_id
+    ui_cfg = load_ui_config()
+    routing_mode = ui_cfg.get("routing_mode", "auto")
+    target_country = ui_cfg.get("force_country", "")
+
+    if routing_mode == "fixed_region" and target_country:
+        nodes = read_nodes()
+        country_nodes = []
+        other_nodes = []
+
+        for n in nodes:
+            c = n.get("country", "")
+            is_match = (
+                c == target_country or 
+                nodepool_utils.COUNTRY_TRANSLATIONS.get(c, c) == target_country
+            )
+            if is_match:
+                country_nodes.append(n)
+            else:
+                other_nodes.append(n)
+
+        if len(country_nodes) > 50:
+            now = time.time()
+            fifteen_days = 15 * 24 * 3600
+            pruned_country_nodes = []
+            removed_count = 0
+
+            for n in country_nodes:
+                is_active = (active_openvpn_node_id and n.get("id") == active_openvpn_node_id)
+                fetched_at = n.get("fetched_at", 0)
+                try:
+                    fetched_at_val = float(fetched_at)
+                except (TypeError, ValueError):
+                    fetched_at_val = 0.0
+
+                if fetched_at_val > 0 and (now - fetched_at_val > fifteen_days) and not is_active:
+                    config_file = n.get("config_file")
+                    if config_file:
+                        try:
+                            os.remove(config_file)
+                        except Exception:
+                            pass
+                    removed_count += 1
+                else:
+                    pruned_country_nodes.append(n)
+
+            if removed_count > 0:
+                msg = f"[Pruner] 选定国家【{target_country}】入库节点数 {len(country_nodes)} > 50，已清理 15 天以上老节点共 {removed_count} 个"
+                print(msg, flush=True)
+                log_to_json("INFO", "Main", msg)
+                write_json(NODES_FILE, other_nodes + pruned_country_nodes)
+
 def infer_last_fetch_at_from_cache() -> float:
     timestamps: list[float] = []
     for node in read_nodes():
@@ -2099,6 +2158,7 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                         pass
                         
             write_json(NODES_FILE, merged)
+            prune_old_nodes()
 
         if auto_test_enabled:
             ui_cfg = load_ui_config()
@@ -2994,6 +3054,7 @@ class Handler(BaseHTTPRequestHandler):
                 with lock:
                     DATA_DIR.mkdir(exist_ok=True, parents=True)
                     auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                    prune_old_nodes()
                 
                 restart_needed = (new_proxy_port_int != expected_proxy_port)
                 if restart_needed:
