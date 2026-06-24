@@ -443,7 +443,17 @@ def prune_old_nodes() -> None:
                 except (TypeError, ValueError):
                     fetched_at_val = 0.0
 
-                if fetched_at_val > 0 and (now - fetched_at_val > fifteen_days) and not is_active:
+                uptime = n.get("uptime", 0)
+                try:
+                    uptime_val = float(uptime)
+                except (TypeError, ValueError):
+                    uptime_val = 0.0
+
+                fifteen_days_ms = fifteen_days * 1000
+                is_old_fetched = (fetched_at_val > 0 and (now - fetched_at_val > fifteen_days))
+                is_old_uptime = (uptime_val > fifteen_days_ms)
+
+                if (is_old_fetched or is_old_uptime) and not is_active:
                     config_file = n.get("config_file")
                     if config_file:
                         try:
