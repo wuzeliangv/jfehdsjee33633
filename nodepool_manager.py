@@ -1879,8 +1879,8 @@ def auto_switch_node(attempt: int = 0) -> None:
         )
         
         def bg_fetch_and_switch():
-            print("[自动切换后台补齐] 300 秒后将尝试重新获取节点并重连...", flush=True)
-            time.sleep(300)
+            print("[自动切换后台补齐] 45 分钟后将尝试重新获取节点并重连...", flush=True)
+            time.sleep(2700)
             try:
                 maintain_valid_nodes(force=False)
                 auto_switch_node()
