@@ -3015,7 +3015,7 @@ class Handler(BaseHTTPRequestHandler):
                     def restart_server():
                         time.sleep(2)
                         print("[系统] 管理后台安全配置更新，进程即将退出以触发自动重启...", flush=True)
-                        os._exit(0)
+                        os._exit(1)
                     
                     threading.Thread(target=restart_server, daemon=True).start()
                 else:
@@ -3098,7 +3098,7 @@ class Handler(BaseHTTPRequestHandler):
                     def restart_server():
                         time.sleep(2)
                         print("[系统] 代理出站端口变更，进程即将退出以触发自动重启...", flush=True)
-                        os._exit(0)
+                        os._exit(1)
                     
                     threading.Thread(target=restart_server, daemon=True).start()
                 else:

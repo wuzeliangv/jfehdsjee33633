@@ -330,7 +330,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=${PROJECT_DIR}
 ExecStart=/usr/bin/python3 -u ${PROJECT_DIR}/nodepool_manager.py
-Restart=on-failure
+Restart=always
 RestartSec=3
 Environment=AUTO_TEST_ENABLED=true
 Environment=FETCH_INTERVAL_SECONDS=7200
