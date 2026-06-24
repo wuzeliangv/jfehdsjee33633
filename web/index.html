@@ -2781,6 +2781,15 @@ function populateRoutingCountries() {
   });
   
   const countries = Object.keys(countMap).sort();
+  
+  // If state.force_country is set and not in countries, add it so the selection doesn't disappear
+  const currentForceCountry = state && state.force_country ? translateCountry(state.force_country) : "";
+  if (currentForceCountry && !countMap[currentForceCountry]) {
+    countMap[currentForceCountry] = 0;
+    countries.push(currentForceCountry);
+    countries.sort();
+  }
+  
   let html = '<option value="">请选择要锁定的国家...</option>';
   countries.forEach(c => {
     html += `<option value="${esc(c)}">${esc(c)} (${countMap[c]}个节点)</option>`;
