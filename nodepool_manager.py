@@ -3848,7 +3848,7 @@ class Handler(BaseHTTPRequestHandler):
                 mc = master_client.get_global_client()
                 if mc and mc.is_enabled():
                     # We just need to upload the alive nodes
-                    nodes = pool.get_alive_nodes()
+                    nodes = [n for n in read_nodes() if n.get("probe_status") == "available"]
                     if not nodes:
                         self.send_json({"ok": False, "error": "本地尚无可用存活节点可上传"})
                     else:
@@ -4014,7 +4014,7 @@ def main() -> None:
             elif cmd == "force_push":
                 mc = master_client.get_global_client()
                 if mc:
-                    nodes = pool.get_alive_nodes()
+                    nodes = [n for n in read_nodes() if n.get("probe_status") == "available"]
                     if nodes:
                         mc.upload_nodes_async(nodes)
 
