@@ -381,6 +381,7 @@ RestartSec=3
 Environment=AUTO_TEST_ENABLED=true
 Environment=FETCH_INTERVAL_SECONDS=7200
 Environment=CHECK_INTERVAL_SECONDS=7200
+Environment=DISABLE_XRAY=${DISABLE_XRAY:-false}
 
 [Install]
 WantedBy=multi-user.target

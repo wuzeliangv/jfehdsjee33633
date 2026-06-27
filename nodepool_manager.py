@@ -77,8 +77,24 @@ class DualStackHTTPServer(ThreadingHTTPServer):
 
 import nodepool_utils
 import proxy_server
-import xray_manager
 import master_client
+
+DISABLE_XRAY = os.environ.get("DISABLE_XRAY", "false").lower() == "true"
+if DISABLE_XRAY:
+    class DummyXrayManager:
+        def get_xray_status(self): return {"ok": False, "error": "入站管理已禁用", "bin_exists": False, "xray_version": "N/A"}
+        def load_inbounds(self): return []
+        def get_share_link(self, inbound_id, server_ip): return {"ok": False, "error": "入站管理已禁用"}
+        def start_xray(self, port): return {"ok": False, "error": "入站管理已禁用"}
+        def stop_xray(self): return {"ok": False, "error": "入站管理已禁用"}
+        def reload_xray(self, port): return {"ok": False, "error": "入站管理已禁用"}
+        def add_inbound(self, *args, **kwargs): return {"ok": False, "error": "入站管理已禁用"}
+        def delete_inbound(self, inbound_id): return {"ok": False, "error": "入站管理已禁用"}
+        def toggle_inbound(self, inbound_id): return {"ok": False, "error": "入站管理已禁用"}
+        def is_xray_running(self): return False
+    xray_manager = DummyXrayManager()
+else:
+    import xray_manager
 
 def env_int(name: str, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
     raw = os.environ.get(name)
@@ -606,6 +622,7 @@ def get_state() -> dict[str, Any]:
     state["master_url"] = ui_cfg.get("master_url", "")
     state["master_agent_name"] = ui_cfg.get("master_agent_name", "")
     
+    state["xray_disabled"] = DISABLE_XRAY
     return state
 
 def safe_name(value: str) -> str:

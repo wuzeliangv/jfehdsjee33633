@@ -2672,6 +2672,11 @@ async function load(){
   updateCountryFilter();
   render();
 
+  if (state.xray_disabled) {
+    const navXray = $("nav_xray");
+    if (navXray) navXray.style.display = "none";
+  }
+
   if (state.is_connecting) {
     startConnectionPolling();
   }
@@ -2687,6 +2692,10 @@ async function reloadNodesState(){
   stableSortNodes();
   updateCountryFilter();
   render();
+  if (state.xray_disabled) {
+    const navXray = $("nav_xray");
+    if (navXray) navXray.style.display = "none";
+  }
 }
 
 async function waitForManualRefresh(previousLastFetchAt){

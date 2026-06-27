@@ -45,7 +45,7 @@ log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 ROLE=""
 for arg in "$@"; do
   case "$arg" in
-    --role=master|--role=agent)
+    --role=master|--role=agent|--role=agent_no_xray)
       ROLE="${arg#--role=}"
       ;;
     -h|--help)
@@ -139,15 +139,20 @@ choose_role() {
   echo
   echo -e "${BOLD}请选择要安装的角色:${NC}"
   echo
-  echo -e "  ${CYAN}1)${NC} ${BOLD}被控端 (Agent)${NC}"
-  echo -e "     · 拉取 OpenVPN 节点 + 本地测速"
-  echo -e "     · 提供 HTTP/SOCKS5 本地代理出口"
-  echo -e "     · 自动把活节点上报给主控(可选)"
+  echo -e "  ${PURPLE}1)${NC} ${BOLD}主控端 (Master)${NC}"
+  echo -e "     · 聚合所有被控上传的节点,L1+L2 并发测活"
+  echo -e "     · 给被控网关按需下发节点列表"
+  echo -e "     · 提供 Web Dashboard 管理面板 (默认端口 28080)"
   echo
-  echo -e "  ${PURPLE}2)${NC} ${BOLD}主控端 (Master)${NC}"
-  echo -e "     · 聚合所有被控上传的节点,L1+L2 测活"
-  echo -e "     · 给被控按需下发"
-  echo -e "     · 自带 Web Dashboard,默认端口 28080"
+  echo -e "  ${CYAN}2)${NC} ${BOLD}被控网关端 - 完整版 (Agent with Inbound Management)${NC}"
+  echo -e "     · 拉取 OpenVPN 节点 + 本地测速 + 本地代理出口"
+  echo -e "     · 包含入站管理功能 (内置 Xray，支持创建 SOCKS5/VLESS 共享节点)"
+  echo -e "     · 提供网关 Web 管理面板"
+  echo
+  echo -e "  ${CYAN}3)${NC} ${BOLD}被控网关端 - 精简无入站版 (Agent without Inbound Management)${NC}"
+  echo -e "     · 纯净被控网关功能，移除了 Xray 入站管理与共享相关组件"
+  echo -e "     · 仅保留 OpenVPN 网关代理出口核心功能，大幅降低内存和系统消耗"
+  echo -e "     · 提供网关 Web 管理面板"
   echo
   echo -e "  ${YELLOW}q)${NC} 退出"
   echo
@@ -162,20 +167,21 @@ if [ -z "$ROLE" ]; then
   while true; do
     choose_role
     if [ "$TTY_READABLE" -eq 1 ]; then
-      if ! read -rp "$(echo -e ${BOLD}'输入选项 [1/2/q]: '${NC})" CHOICE </dev/tty; then
+      if ! read -rp "$(echo -e ${BOLD}'输入选项 [1/2/3/q]: '${NC})" CHOICE </dev/tty; then
         CHOICE="__EOF__"
       fi
     else
-      if ! read -rp "$(echo -e ${BOLD}'输入选项 [1/2/q]: '${NC})" CHOICE; then
+      if ! read -rp "$(echo -e ${BOLD}'输入选项 [1/2/3/q]: '${NC})" CHOICE; then
         CHOICE="__EOF__"
       fi
     fi
     case "${CHOICE:-}" in
-      1|agent|Agent|AGENT) ROLE="agent"; break ;;
-      2|master|Master|MASTER) ROLE="master"; break ;;
+      1|master|Master|MASTER) ROLE="master"; break ;;
+      2|agent|Agent|AGENT) ROLE="agent"; break ;;
+      3|agent_no_xray) ROLE="agent_no_xray"; break ;;
       q|Q|quit|exit) echo "已取消"; exit 0 ;;
       __EOF__)
-        log_error "无法读取输入(stdin 已结束),请使用 --role=agent 或 --role=master"
+        log_error "无法读取输入(stdin 已结束),请使用 --role=master, --role=agent 或 --role=agent_no_xray"
         exit 1
         ;;
       "") log_warning "请输入选项" ;;
@@ -186,18 +192,25 @@ fi
 
 # ── 调用对应子脚本 ────────────────────────────────────────
 case "$ROLE" in
-  agent)
-    log_info "即将安装【被控端 Agent】到 ${PROJECT_DIR}"
-    sleep 1
-    chmod +x "${PROJECT_DIR}/install.sh"
-    # exec 替换进程,把子脚本的交互/输出直接交给用户
-    exec "${PROJECT_DIR}/install.sh"
-    ;;
   master)
     log_info "即将安装【主控端 Master】到 ${PROJECT_DIR}/master"
     sleep 1
     chmod +x "${PROJECT_DIR}/master/install_master.sh"
     exec "${PROJECT_DIR}/master/install_master.sh"
+    ;;
+  agent)
+    log_info "即将安装【被控端 Agent - 完整版】到 ${PROJECT_DIR}"
+    sleep 1
+    chmod +x "${PROJECT_DIR}/install.sh"
+    export DISABLE_XRAY="false"
+    exec "${PROJECT_DIR}/install.sh"
+    ;;
+  agent_no_xray)
+    log_info "即将安装【被控端 Agent - 精简无入站版】到 ${PROJECT_DIR}"
+    sleep 1
+    chmod +x "${PROJECT_DIR}/install.sh"
+    export DISABLE_XRAY="true"
+    exec "${PROJECT_DIR}/install.sh"
     ;;
   *)
     log_error "未知角色: $ROLE"
