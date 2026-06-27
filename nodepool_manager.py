@@ -2535,15 +2535,28 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
             valid_nodes=valid_nodes_count,
         )
 
-        # 分布式主控:把本轮测速 OK 的节点批量上报给主控(失败 swallow)
+        # 分布式主控:把本轮测速 OK 的节点，以及在连接状态下无法测试的“待检测”节点，批量上报给主控进行云端测活
         try:
             mc = master_client.get_global_client()
             if mc is not None and mc.is_enabled():
-                available_nodes = [n for n in merged if n.get("probe_status") == "available"]
-                if available_nodes:
+                upload_candidates = []
+                # 如果当前已建立活跃 VPN 连接，被控端无法直接测活，则将待检测节点打包上报，交由主控端进行分布式/云端测活
+                if active_openvpn_running():
+                    untested_nodes = [n for n in merged if n.get("probe_status") == "not_checked"]
+                    for un in untested_nodes:
+                        un_copy = un.copy()
+                        un_copy["latency_ms"] = 0
+                        un_copy["speed"] = 0
+                        upload_candidates.append(un_copy)
+                    if upload_candidates:
+                        print(f"[维护线程] 检测到当前处于活跃 VPN 连接中，已将 {len(upload_candidates)} 个待检测节点打包上报主控进行云测。", flush=True)
+                else:
+                    upload_candidates = [n for n in merged if n.get("probe_status") == "available"]
+                
+                if upload_candidates:
                     threading.Thread(
                         target=mc.upload_nodes,
-                        args=(available_nodes,),
+                        args=(upload_candidates,),
                         daemon=True,
                         name="MasterUpload",
                     ).start()
