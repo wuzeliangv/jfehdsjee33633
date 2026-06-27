@@ -1594,6 +1594,30 @@
   </div>
 </div>
 
+<!-- Custom Prompt Modal -->
+<div id="custom_prompt_modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); z-index: 10000; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s ease-out;">
+  <div style="background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 18px; padding: 24px; max-width: 420px; width: 90%; box-shadow: var(--neumorphic-outset); transform: scale(0.9); transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); box-sizing: border-box; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(0, 122, 255, 0.12); border: 1px solid rgba(0, 122, 255, 0.25); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg xmlns="http://www.w3.org/2000/svg" style="width: 20px; height: 20px; color: var(--primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+      </div>
+      <h4 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text-primary);">输入信息</h4>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div id="custom_prompt_message" style="font-size: 14px; color: var(--text-secondary); line-height: 1.5; word-break: break-all; max-height: 250px; overflow-y: auto;">
+        请输入：
+      </div>
+      <input type="text" id="custom_prompt_input" autocomplete="off" style="width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 10px; padding: 10px 14px; font-size: 14px; outline: none; transition: border-color 0.2s;">
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px;">
+      <button id="custom_prompt_cancel_btn" style="height: 38px; min-width: 80px; font-weight: 600; border-radius: 10px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.04); color: var(--text-secondary); cursor: pointer; transition: background 0.2s;">取消</button>
+      <button id="custom_prompt_ok_btn" class="btn-primary" style="height: 38px; min-width: 80px; font-weight: 600; border-radius: 10px; background: var(--primary-gradient); border: none; color: white; cursor: pointer;">确定</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // 重写系统默认弹窗 alert
 window.alert = function(msg) {
@@ -1702,6 +1726,50 @@ function showConfirm(title, message) {
     };
   });
 }
+
+window.customPrompt = function(msg, defaultVal = "") {
+  return new Promise((resolve) => {
+    const modal = $("custom_prompt_modal");
+    const messageEl = $("custom_prompt_message");
+    const inputEl = $("custom_prompt_input");
+    const btnOk = $("custom_prompt_ok_btn");
+    const btnCancel = $("custom_prompt_cancel_btn");
+    
+    messageEl.textContent = msg;
+    inputEl.value = defaultVal;
+    
+    modal.style.display = "flex";
+    modal.offsetHeight; // force reflow
+    modal.style.opacity = "1";
+    modal.querySelector("div").style.transform = "scale(1)";
+    
+    let isResolved = false;
+    const doResolve = (val) => {
+      if (isResolved) return;
+      isResolved = true;
+      closeModal();
+      resolve(val);
+    };
+    
+    const keyHandler = (e) => {
+      if (e.key === "Enter") doResolve(inputEl.value);
+      if (e.key === "Escape") doResolve(null);
+    };
+    
+    btnOk.onclick = () => doResolve(inputEl.value);
+    btnCancel.onclick = () => doResolve(null);
+    inputEl.onkeydown = keyHandler;
+    
+    const closeModal = () => {
+      modal.style.opacity = "0";
+      modal.querySelector("div").style.transform = "scale(0.9)";
+      inputEl.onkeydown = null;
+      setTimeout(() => { modal.style.display = "none"; }, 200);
+    };
+    
+    setTimeout(() => inputEl.focus(), 100);
+  });
+};
 
 let nodes=[], state={}, testingNodeIds = new Set();
 let currentPage = 1;
@@ -3312,7 +3380,7 @@ function exportLogContent() {
   URL.revokeObjectURL(url);
 }
     async function triggerMasterPull() {
-      let ccode = prompt("如果你想强行指定拉取某个国家（例如 HK, JP, US），请在此输入。\n如果不指定（留空直接确定），则按该网关的网络设置进行拉取：");
+      let ccode = await customPrompt("如果你想强行指定拉取某个国家（例如 HK, JP, US），请在此输入。\n如果不指定（留空直接确定），则按该网关的网络设置进行拉取：");
       if (ccode === null) return;
       ccode = ccode.trim().toUpperCase();
       try {
