@@ -47,6 +47,30 @@ PROBE_WORK_DIR = DATA_DIR / "probe_tmp"
 CONFIG_PATH = DATA_DIR / "master_config.json"
 
 
+_log_lock = threading.Lock()
+
+def master_log(msg: str) -> None:
+    now_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    formatted = f"[{now_str}] {msg}"
+    print(formatted, flush=True)
+    try:
+        log_file = DATA_DIR / "master.log"
+        with _log_lock:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(formatted + "\n")
+            if log_file.stat().st_size > 1024 * 1024:  # 1MB
+                try:
+                    with open(log_file, "r", encoding="utf-8") as f2:
+                        lines = f2.readlines()
+                    if len(lines) > 2000:
+                        with open(log_file, "w", encoding="utf-8") as f3:
+                            f3.writelines(lines[-1000:])
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"[log error] failed to write log: {e}", flush=True)
+
+
 DEFAULT_CONFIG: dict[str, Any] = {
     "listen_host": "0.0.0.0",
     "listen_port": 28080,
@@ -73,7 +97,7 @@ def load_config() -> dict[str, Any]:
             if isinstance(user, dict):
                 cfg.update(user)
         except Exception as e:
-            print(f"[master] master_config.json 解析失败: {e}", flush=True)
+            master_log(f"[master] master_config.json 解析失败: {e}")
 
     # 环境变量覆盖
     env_map: dict[str, tuple[str, Any]] = {
@@ -114,7 +138,7 @@ def load_config() -> dict[str, Any]:
             except OSError:
                 pass
         except Exception as e:
-            print(f"[master] 配置写入失败: {e}", flush=True)
+            master_log(f"[master] 配置写入失败: {e}")
     return cfg
 
 
@@ -131,7 +155,7 @@ def save_config() -> None:
         except OSError:
             pass
     except Exception as e:
-        print(f"[master] 配置写入失败: {e}", flush=True)
+        master_log(f"[master] 配置写入失败: {e}")
 
 
 CONFIG = load_config()
@@ -263,10 +287,7 @@ class MasterHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
         # 紧凑日志,统一前缀
-        print(
-            f"[http] {self.address_string()} {format % args}",
-            flush=True,
-        )
+        master_log(f"[http] {self.address_string()} {format % args}")
 
     # ── 工具方法 ─────────────────────────────────────────────
 
@@ -423,6 +444,9 @@ class MasterHandler(BaseHTTPRequestHandler):
             return
         if method == "POST" and path == "/admin/api/settings":
             self._handle_admin_update_settings()
+            return
+        if method == "GET" and path == "/admin/api/logs":
+            self._handle_admin_get_logs()
             return
 
         self._send_json({"ok": False, "error": "not_found"}, 404)
@@ -716,6 +740,22 @@ class MasterHandler(BaseHTTPRequestHandler):
         ok = DB.delete_agent(agent_id)
         self._send_json({"ok": ok})
 
+    def _handle_admin_get_logs(self) -> None:
+        if not self._auth_admin():
+            self._send_json({"ok": False, "error": "unauthorized"}, 401)
+            return
+        log_file = DATA_DIR / "master.log"
+        lines = []
+        if log_file.exists():
+            try:
+                with _log_lock:
+                    with open(log_file, "r", encoding="utf-8") as f:
+                        all_lines = f.readlines()
+                        lines = [line.strip() for line in all_lines[-300:]]
+            except Exception as e:
+                lines = [f"Failed to read logs: {e}"]
+        self._send_json({"ok": True, "logs": lines})
+
     def _handle_admin_get_settings(self) -> None:
         if not self._auth_admin():
             self._send_json({"ok": False, "error": "unauthorized"}, 401)
@@ -769,9 +809,8 @@ class MasterHandler(BaseHTTPRequestHandler):
             return
 
         save_config()
-        print(
-            f"[master] 设置已更新: {', '.join(changed)}",
-            flush=True,
+        master_log(
+            f"[master] 设置已更新: {', '.join(changed)}"
         )
 
         # admin_token 变更时需重新签发 session cookie，否则当前会话立即失效
@@ -809,10 +848,9 @@ def probe_worker_loop() -> None:
     stale = int(CONFIG.get("probe_stale_seconds", 600))
     concurrency = int(CONFIG.get("probe_concurrency", 4))
     PROBE_WORK_DIR.mkdir(exist_ok=True, parents=True)
-    print(
+    master_log(
         f"[probe] worker started interval={interval}s batch={batch_size} "
-        f"concurrency={concurrency}",
-        flush=True,
+        f"concurrency={concurrency}"
     )
     sem = threading.Semaphore(concurrency)
 
@@ -826,9 +864,8 @@ def probe_worker_loop() -> None:
                 time.sleep(min(interval, 60))
                 continue
 
-            print(
-                f"[probe] picked {len(batch)} nodes to check in this batch",
-                flush=True,
+            master_log(
+                f"[probe] picked {len(batch)} nodes to check in this batch"
             )
 
             threads: list[threading.Thread] = []
@@ -841,16 +878,14 @@ def probe_worker_loop() -> None:
                     port = node.get("port", 0)
                     proto = node.get("proto", "udp")
                     try:
-                        print(
-                            f"[probe] [{fp_short}] checking node {host}:{port} ({proto})...",
-                            flush=True,
+                        master_log(
+                            f"[probe] [{fp_short}] checking node {host}:{port} ({proto})..."
                         )
                         if not probe_l1(
                             host, int(port), proto
                         ):
-                            print(
-                                f"[probe] [{fp_short}] {host}:{port} L1 reachability check FAILED",
-                                flush=True,
+                            master_log(
+                                f"[probe] [{fp_short}] {host}:{port} L1 reachability check FAILED"
                             )
                             DB.update_probe_result(node["fingerprint"], False, None)
                             return
@@ -864,23 +899,20 @@ def probe_worker_loop() -> None:
                             )
                             if msg == "openvpn_not_installed":
                                 # 主控未装 OpenVPN,L2 永远不会成功;打印一次显眼提示
-                                print(
+                                master_log(
                                     "[probe] openvpn 未安装,L2 测活不可用。"
-                                    "请在主控机器上安装 openvpn 客户端。",
-                                    flush=True,
+                                    "请在主控机器上安装 openvpn 客户端。"
                                 )
                         finally:
                             TUN_POOL.release(idx)
                         
                         if alive:
-                            print(
-                                f"[probe] [{fp_short}] {host}:{port} L2 OpenVPN handshake SUCCESS (latency: {hs_ms}ms)",
-                                flush=True,
+                            master_log(
+                                f"[probe] [{fp_short}] {host}:{port} L2 OpenVPN handshake SUCCESS (latency: {hs_ms}ms)"
                             )
                         else:
-                            print(
-                                f"[probe] [{fp_short}] {host}:{port} L2 OpenVPN handshake FAILED",
-                                flush=True,
+                            master_log(
+                                f"[probe] [{fp_short}] {host}:{port} L2 OpenVPN handshake FAILED"
                             )
 
                         DB.update_probe_result(
@@ -889,9 +921,8 @@ def probe_worker_loop() -> None:
                             hs_ms if alive else None,
                         )
                     except Exception as e:
-                        print(
-                            f"[probe] [{fp_short}] {host}:{port} check error: {e}",
-                            flush=True,
+                        master_log(
+                            f"[probe] [{fp_short}] {host}:{port} check error: {e}"
                         )
                     finally:
                         sem.release()
@@ -920,10 +951,8 @@ def cleanup_worker_loop() -> None:
                 int(CONFIG.get("feedback_retention_hours", 168)) * 3600
             )
             if removed or fb_removed:
-                print(
-                    f"[cleanup] removed {removed} dead nodes, "
-                    f"{fb_removed} stale feedback",
-                    flush=True,
+                master_log(
+                    f"[cleanup] removed {removed} dead nodes, {fb_removed} stale feedback"
                 )
         except Exception:
             traceback.print_exc()
@@ -933,9 +962,9 @@ def cleanup_worker_loop() -> None:
 
 
 def main() -> None:
-    print(f"[master] data dir: {DATA_DIR}", flush=True)
-    print(f"[master] enroll_token: {CONFIG.get('enroll_token','')}", flush=True)
-    print(f"[master] admin_token : {CONFIG.get('admin_token','')}", flush=True)
+    master_log(f"[master] data dir: {DATA_DIR}")
+    master_log(f"[master] enroll_token: {CONFIG.get('enroll_token','')}")
+    master_log(f"[master] admin_token : {CONFIG.get('admin_token','')}")
 
     threading.Thread(target=probe_worker_loop, daemon=True).start()
     threading.Thread(target=cleanup_worker_loop, daemon=True).start()
@@ -951,13 +980,13 @@ def main() -> None:
         if stop_event.is_set():
             return
         stop_event.set()
-        print("[master] shutting down...", flush=True)
+        master_log("[master] shutting down...")
         threading.Thread(target=server.shutdown, daemon=True).start()
 
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
 
-    print(f"[master] listening on {host}:{port}", flush=True)
+    master_log(f"[master] listening on {host}:{port}")
     try:
         server.serve_forever()
     finally:

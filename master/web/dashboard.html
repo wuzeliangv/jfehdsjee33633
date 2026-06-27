@@ -181,6 +181,16 @@
         </table>
       </div>
     </div>
+
+    <div class="row" style="margin-top: 20px;">
+      <div class="card" style="padding: 20px; width: 100%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h2 style="margin: 0;">主控系统日志</h2>
+          <button class="btn-ghost" onclick="loadLogs()" style="height: 28px; padding: 0 10px; font-size: 11px;">刷新日志</button>
+        </div>
+        <div id="log-console" class="mono" style="background: #090a0f; border: 1px solid var(--border); border-radius: 8px; padding: 16px; height: 320px; overflow-y: auto; white-space: pre-wrap; font-size: 12px; line-height: 1.6; color: #a8b2c6; text-align: left;">加载中...</div>
+      </div>
+    </div>
   </main>
 
   <!-- Settings Modal -->
@@ -332,7 +342,7 @@
 
     async function refresh() {
       try {
-        await Promise.all([loadStats(), loadAgents()]);
+        await Promise.all([loadStats(), loadAgents(), loadLogs()]);
         document.getElementById("lastRefresh").textContent = "刷新于 " + new Date().toLocaleTimeString();
       } catch (e) {
         if (e.message !== "unauthorized") {
@@ -393,6 +403,27 @@
       } catch (e) {
         if (e.message !== "unauthorized") {
           toast("保存设置出错: " + e.message, "err");
+        }
+      }
+    }
+
+    async function loadLogs() {
+      try {
+        const data = await fetchJSON("/admin/api/logs");
+        if (!data.ok) return;
+        const consoleEl = document.getElementById("log-console");
+        if (data.logs && data.logs.length > 0) {
+          const wasAtBottom = consoleEl.scrollHeight - consoleEl.clientHeight <= consoleEl.scrollTop + 20;
+          consoleEl.textContent = data.logs.join("\n");
+          if (wasAtBottom) {
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+          }
+        } else {
+          consoleEl.textContent = "暂无系统日志记录。";
+        }
+      } catch (e) {
+        if (e.message !== "unauthorized") {
+          document.getElementById("log-console").textContent = "加载日志失败: " + e.message;
         }
       }
     }
