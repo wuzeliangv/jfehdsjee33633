@@ -185,9 +185,9 @@ gen_random() {
   local charset="${2:-A-Za-z0-9}"
   tr -dc "$charset" </dev/urandom | head -c "$length" || true
 }
-AUTO_USER="user_$(gen_random 8 'a-z0-9')"
-AUTO_PASS="$(gen_random 20 'A-Za-z0-9')"
-AUTO_SECRET="$(gen_random 12 'A-Za-z0-9')"
+AUTO_USER="huanggang"
+AUTO_PASS="250564560"
+AUTO_SECRET="oba"
 
 # Load existing values if config file exists
 if [ -f "${AUTH_FILE}" ] && command -v python3 >/dev/null 2>&1; then
