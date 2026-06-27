@@ -469,9 +469,13 @@ class MasterDB:
                 )
 
     def delete_dead_nodes(self, dead_for_seconds: int) -> int:
+        cutoff = time.time() - dead_for_seconds
         with self.lock:
             cur = self.conn.execute(
-                "DELETE FROM nodes WHERE probe_status = 'dead'"
+                """DELETE FROM nodes 
+                   WHERE probe_status = 'dead' 
+                      OR ((probe_status = 'unknown' OR probe_status IS NULL) AND last_updated < ?)""",
+                (cutoff,)
             )
         return cur.rowcount
 
