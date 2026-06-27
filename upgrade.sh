@@ -51,7 +51,19 @@ fi
 echo -e "${YELLOW}    远端默认分支: origin/${DEFAULT_BRANCH}${NC}"
 
 # 3) 强制重置到远端最新(此动作会丢弃所有本地未提交修改)
+DISABLE_XRAY_ACTIVE=false
+if [ -f "/etc/systemd/system/nodepool.service" ]; then
+    if grep -q "Environment=DISABLE_XRAY=true" /etc/systemd/system/nodepool.service; then
+        DISABLE_XRAY_ACTIVE=true
+    fi
+fi
+
 git reset --hard "origin/${DEFAULT_BRANCH}"
+
+if [ "$DISABLE_XRAY_ACTIVE" = "true" ]; then
+    echo -e "${YELLOW}    检测到当前处于精简模式，正在清理恢复的 xray 内核...${NC}"
+    rm -rf "${SCRIPT_DIR}/xray"
+fi
 
 NEW_REV="$(git rev-parse HEAD 2>/dev/null || echo "")"
 

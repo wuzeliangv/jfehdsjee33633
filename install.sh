@@ -387,6 +387,11 @@ Environment=DISABLE_XRAY=${DISABLE_XRAY:-false}
 WantedBy=multi-user.target
 EOF
 
+if [ "${DISABLE_XRAY:-false}" = "true" ]; then
+  log_info "正在物理清除 xray 二进制内核文件夹，确保系统盘无残留..."
+  rm -rf "${PROJECT_DIR}/xray"
+fi
+
 log_info "正在向 systemd 注册并启动 nodepool.service..."
 systemctl daemon-reload >/dev/null 2>&1 || true
 systemctl enable --now nodepool.service >/dev/null 2>&1 || true
