@@ -416,6 +416,8 @@ def log_to_json(level: str, module: str, message: str) -> None:
             "module": module,
             "message": message
         }
+        # 同时打印到标准输出，以便 journalctl 收集流式日志
+        print(f"[{entry['timestamp']}] [{level.upper()}] [{module}] {message}", flush=True)
         with lock:
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
