@@ -2140,7 +2140,7 @@ def auto_switch_node(attempt: int = 0, excluded_ids: set[str] | None = None) -> 
         )
         
         def bg_fetch_and_switch():
-            # 先快速尝试从主控拉该地区节点(秒级);失败再走原 45 分钟 VPN Gate 兜底
+            # 先快速尝试从主控拉该地区节点(秒级);失败再走原 VPN Gate 兜底
             try:
                 mc = master_client.get_global_client()
                 if (
@@ -2169,13 +2169,39 @@ def auto_switch_node(attempt: int = 0, excluded_ids: set[str] | None = None) -> 
             except Exception as e:
                 print(f"[自动切换后台补齐] 主控快速拉取失败,降级到 VPN Gate: {e}", flush=True)
 
-            print("[自动切换后台补齐] 45 分钟后将尝试重新获取节点并重连...", flush=True)
-            time.sleep(2700)
-            try:
-                maintain_valid_nodes(force=False)
-                auto_switch_node()
-            except Exception as e:
-                print(f"[自动切换后台补齐] 获取并测试节点失败: {e}", flush=True)
+            # 如果本地没有任何可用备用节点，且没有主控补充，我们直接触发一次即时拉取与测活，而不是等待 45 分钟！
+            # 为了防止网络彻底断开时导致无限死循环，我们在本轮失败后等待 10 秒，然后重试。如果重试依然失败，则后续每次等待时间增加（退避算法），上限为 5 分钟。
+            backoff = 10
+            for attempt_retry in range(5):
+                print(f"[自动切换后台补齐] {backoff} 秒后将尝试重新获取节点并重连...", flush=True)
+                time.sleep(backoff)
+                try:
+                    # 强力拉取与测速
+                    maintain_valid_nodes(force=True, is_manual=True)
+                    # 重新检查是否有可用节点
+                    nodes = read_nodes()
+                    available = [n for n in nodes if n.get("probe_status") == "available" and not n.get("active")]
+                    if available:
+                        print("[自动切换后台补齐] 成功拉取到新的可用节点，触发重新切换", flush=True)
+                        auto_switch_node()
+                        return
+                except Exception as e:
+                    print(f"[自动切换后台补齐] 尝试获取并测试节点失败: {e}", flush=True)
+                backoff = min(300, backoff * 2) # 指数退避，最大 5 分钟
+            
+            # 如果重试了 5 次依然没有活节点，那么我们退入长周期等待（每 10 分钟重试一次）
+            while True:
+                print("[自动切换后台补齐] 节点持续匮乏，10 分钟后将再次尝试重新获取...", flush=True)
+                time.sleep(600)
+                try:
+                    maintain_valid_nodes(force=True, is_manual=True)
+                    nodes = read_nodes()
+                    available = [n for n in nodes if n.get("probe_status") == "available" and not n.get("active")]
+                    if available:
+                        auto_switch_node()
+                        return
+                except Exception as e:
+                    print(f"[自动切换后台补齐] 尝试获取并测试节点失败: {e}", flush=True)
         
         threading.Thread(target=bg_fetch_and_switch, daemon=True).start()
 
@@ -2405,6 +2431,12 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                                 f"<b>状态:</b> 正在寻找最佳备用节点进行切换..."
                             )
                             auto_switch_node()
+                        is_connecting = True
+                    else:
+                        # 开启初始自动连接 (系统启动首连)
+                        print("[维护线程] 检测到已开启自动连接且当前未连接，正在启动初始自动连接...", flush=True)
+                        is_connecting = False
+                        auto_switch_node()
                         is_connecting = True
 
         auto_test_enabled = os.environ.get("AUTO_TEST_ENABLED", "false").lower() == "true"
