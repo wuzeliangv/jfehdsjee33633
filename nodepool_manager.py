@@ -2497,22 +2497,21 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                 set_state(last_check_message="所有拉取到的节点均为机房 IP，已全部过滤")
                 return "所有拉取到的节点均为机房 IP，已全部过滤"
 
+        full_merged: list[dict[str, Any]] = []
         with lock:
             active_node = None
             if active_openvpn_node_id:
                 current_nodes = read_nodes()
                 active_node = next((n for n in current_nodes if n.get("id") == active_openvpn_node_id), None)
                 
-            merged: list[dict[str, Any]] = []
             seen_ids: set[str] = set()
-            
             current_nodes = read_nodes()
             current_nodes_map = {n["id"]: n for n in current_nodes}
             
             if active_node:
                 if any(cand["id"] == active_node["id"] for cand in candidates):
                     active_node["fetched_at"] = time.time()
-                merged.append(active_node)
+                full_merged.append(active_node)
                 seen_ids.add(active_node["id"])
                 
             for cand in candidates:
@@ -2529,7 +2528,7 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                                 if field in old_n:
                                     cand[field] = old_n[field]
                         cand["fetched_at"] = time.time()
-                    merged.append(cand)
+                    full_merged.append(cand)
                     seen_ids.add(cand_id)
                     
             for old_n in current_nodes:
@@ -2537,19 +2536,53 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                     status = old_n.get("probe_status", "")
                     # 已测活的节点保留更久；待检测节点如果超过 72 小时没有在 API 中重新出现则清除
                     if status == "available":
-                        merged.append(old_n)
+                        full_merged.append(old_n)
                         seen_ids.add(old_n["id"])
                     elif status == "not_checked":
                         fetched_at = float(old_n.get("fetched_at", 0) or 0)
                         if fetched_at > 0 and (time.time() - fetched_at) < 259200:  # 72小时
-                            merged.append(old_n)
+                            full_merged.append(old_n)
                             seen_ids.add(old_n["id"])
                         # 超过 72 小时的待检测节点：静默丢弃，不再保留
-                        
-            if len(merged) > 500:
-                merged = merged[:500]
+
+            # 过滤本地保存的节点：如果开启了固定地区/国家模式，只保留活跃节点和最多30个目标国家的节点，其余直接丢弃配置并清理
+            ui_cfg_tmp = load_ui_config()
+            routing_mode_tmp = ui_cfg_tmp.get("routing_mode", "auto")
+            target_country_tmp = ui_cfg_tmp.get("force_country", "")
+            
+            if routing_mode_tmp == "fixed_region" and target_country_tmp:
+                fixed_nodes = []
+                for n in full_merged:
+                    n_country = n.get("country", "")
+                    n_country_zh = nodepool_utils.COUNTRY_TRANSLATIONS.get(n_country, n_country)
+                    if n_country == target_country_tmp or n_country_zh == target_country_tmp:
+                        fixed_nodes.append(n)
                 
-            for n in merged:
+                # 优先保留已测活成功节点，然后按拉取时间从新到旧排序
+                fixed_nodes.sort(key=lambda x: (1 if x.get("probe_status") == "available" else 0, float(x.get("fetched_at", 0) or 0)), reverse=True)
+                local_nodes = fixed_nodes[:30]
+                
+                # 活跃节点必须保留，防止断连
+                if active_node and not any(n["id"] == active_node["id"] for n in local_nodes):
+                    local_nodes.insert(0, active_node)
+            else:
+                local_nodes = full_merged
+                if len(local_nodes) > 500:
+                    local_nodes = local_nodes[:500]
+
+            # 清理不再保留的节点的物理配置文件
+            local_node_ids = {n["id"] for n in local_nodes}
+            for old_n in current_nodes:
+                if old_n["id"] not in local_node_ids:
+                    config_file = old_n.get("config_file")
+                    if config_file:
+                        try:
+                            os.remove(config_file)
+                        except Exception:
+                            pass
+                            
+            # 写入本地保存列表
+            for n in local_nodes:
                 config_path = Path(n["config_file"])
                 if not config_path.exists():
                     try:
@@ -2557,8 +2590,9 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                     except Exception:
                         pass
                         
-            write_json(NODES_FILE, merged)
+            write_json(NODES_FILE, local_nodes)
             prune_old_nodes()
+            merged = local_nodes
 
         if auto_test_enabled:
             ui_cfg = load_ui_config()
@@ -2609,8 +2643,15 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
         try:
             mc = master_client.get_global_client()
             if mc is not None and mc.is_enabled():
+                # 用最新测速结果更新全量列表中的对应节点状态
+                local_nodes_map = {n["id"]: n for n in merged}
+                for idx, n in enumerate(full_merged):
+                    nid = n["id"]
+                    if nid in local_nodes_map:
+                        full_merged[idx] = local_nodes_map[nid]
+                        
                 upload_candidates = []
-                for n in merged:
+                for n in full_merged:
                     status = n.get("probe_status", "")
                     if status in ("available", "not_checked"):
                         n_copy = n.copy()
