@@ -1020,7 +1020,7 @@
     <div class="view-pane" id="pane-settings">
       <div class="settings-panel glass">
         <div class="form-title">
-          系统口令及安全偏好设置
+          系统口令及安全设置
         </div>
         <div class="form-item">
           <div class="input-box">
@@ -1034,8 +1034,60 @@
             <input type="text" class="input-field" id="input-enroll-token" placeholder="设置新的被控端网关接入验证口令">
           </div>
         </div>
+
+        <div class="form-title" style="margin-top: 36px;">
+          主控测活与清理参数设置
+        </div>
+        <div style="display: flex; gap: 16px; margin-bottom: 20px;">
+          <div class="form-item" style="flex: 1; margin-bottom: 0;">
+            <div class="input-box">
+              <label for="input-probe-enabled">开启主控自动测活</label>
+              <select class="input-field" id="input-probe-enabled" style="appearance: none; background: rgba(255,255,255,0.03); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.08); padding: 12px 16px; border-radius: 12px; font-weight:600; cursor: pointer;">
+                <option value="true" style="background:#121626; color:#cbd5e1;">开启探测</option>
+                <option value="false" style="background:#121626; color:#cbd5e1;">关闭探测</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-item" style="flex: 1; margin-bottom: 0;">
+            <div class="input-box">
+              <label for="input-probe-concurrency">测活并发限制 (最大网卡数)</label>
+              <input type="number" class="input-field" id="input-probe-concurrency" min="1" max="32" placeholder="默认: 4">
+            </div>
+          </div>
+        </div>
+        
+        <div style="display: flex; gap: 16px; margin-bottom: 20px;">
+          <div class="form-item" style="flex: 1; margin-bottom: 0;">
+            <div class="input-box">
+              <label for="input-probe-interval-sec">扫描测活循环周期 (秒)</label>
+              <input type="number" class="input-field" id="input-probe-interval-sec" min="10" placeholder="默认: 300 (5分钟)">
+            </div>
+          </div>
+          <div class="form-item" style="flex: 1; margin-bottom: 0;">
+            <div class="input-box">
+              <label for="input-probe-stale-seconds">已测节点冷却保护时长 (秒)</label>
+              <input type="number" class="input-field" id="input-probe-stale-seconds" min="30" placeholder="默认: 600 (10分钟)">
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 16px; margin-bottom: 28px;">
+          <div class="form-item" style="flex: 1; margin-bottom: 0;">
+            <div class="input-box">
+              <label for="input-probe-batch-size">每轮测活扫描节点量</label>
+              <input type="number" class="input-field" id="input-probe-batch-size" min="1" max="100" placeholder="默认: 12">
+            </div>
+          </div>
+          <div class="form-item" style="flex: 1; margin-bottom: 0;">
+            <div class="input-box">
+              <label for="input-node-retention-hours">未上线节点保留时间 (小时)</label>
+              <input type="number" class="input-field" id="input-node-retention-hours" min="1" max="720" placeholder="默认: 24 (1天)">
+            </div>
+          </div>
+        </div>
+
         <button class="btn btn-primary" onclick="saveSettings()" style="width: 100%; height: 48px;">
-          保存偏好更改并自动生效
+          保存系统配置更改并生效
         </button>
       </div>
     </div>
@@ -1108,6 +1160,12 @@
         if (res.ok) {
           document.getElementById("input-admin-token").value = res.settings.admin_token || "";
           document.getElementById("input-enroll-token").value = res.settings.enroll_token || "";
+          document.getElementById("input-probe-enabled").value = res.settings.probe_enabled !== false ? "true" : "false";
+          document.getElementById("input-probe-interval-sec").value = res.settings.probe_interval_sec || 300;
+          document.getElementById("input-probe-batch-size").value = res.settings.probe_batch_size || 12;
+          document.getElementById("input-probe-concurrency").value = res.settings.probe_concurrency || 4;
+          document.getElementById("input-probe-stale-seconds").value = res.settings.probe_stale_seconds || 600;
+          document.getElementById("input-node-retention-hours").value = res.settings.node_retention_hours || 24;
         }
       } catch(e) {}
     }
@@ -1438,6 +1496,12 @@
     async function saveSettings() {
       const adminToken = document.getElementById("input-admin-token").value.trim();
       const enrollToken = document.getElementById("input-enroll-token").value.trim();
+      const probeEnabled = document.getElementById("input-probe-enabled").value === "true";
+      const probeIntervalSec = parseInt(document.getElementById("input-probe-interval-sec").value) || 300;
+      const probeBatchSize = parseInt(document.getElementById("input-probe-batch-size").value) || 12;
+      const probeConcurrency = parseInt(document.getElementById("input-probe-concurrency").value) || 4;
+      const probeStaleSeconds = parseInt(document.getElementById("input-probe-stale-seconds").value) || 600;
+      const nodeRetentionHours = parseInt(document.getElementById("input-node-retention-hours").value) || 24;
 
       if (adminToken.length < 6 || enrollToken.length < 6) {
         toast("安全强度低，授权口令长度不能少于 6 个字符", "err");
@@ -1447,7 +1511,16 @@
       try {
         const res = await fetchJSON("/admin/api/settings", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ admin_token: adminToken, enroll_token: enrollToken })
+          body: JSON.stringify({
+            admin_token: adminToken,
+            enroll_token: enrollToken,
+            probe_enabled: probeEnabled,
+            probe_interval_sec: probeIntervalSec,
+            probe_batch_size: probeBatchSize,
+            probe_concurrency: probeConcurrency,
+            probe_stale_seconds: probeStaleSeconds,
+            node_retention_hours: nodeRetentionHours
+          })
         });
         if (res.ok) {
           toast("偏好设置已成功保存并重新部署", "ok");

@@ -812,6 +812,12 @@ class MasterHandler(BaseHTTPRequestHandler):
             "settings": {
                 "admin_token": CONFIG.get("admin_token", ""),
                 "enroll_token": CONFIG.get("enroll_token", ""),
+                "probe_enabled": CONFIG.get("probe_enabled", True),
+                "probe_interval_sec": CONFIG.get("probe_interval_sec", 300),
+                "probe_batch_size": CONFIG.get("probe_batch_size", 12),
+                "probe_concurrency": CONFIG.get("probe_concurrency", 4),
+                "probe_stale_seconds": CONFIG.get("probe_stale_seconds", 600),
+                "node_retention_hours": CONFIG.get("node_retention_hours", 24),
             },
         })
 
@@ -850,6 +856,37 @@ class MasterHandler(BaseHTTPRequestHandler):
             if new_enroll != CONFIG.get("enroll_token"):
                 CONFIG["enroll_token"] = new_enroll
                 changed.append("enroll_token")
+
+        # 测活控制
+        val_probe_enabled = body.get("probe_enabled")
+        if val_probe_enabled is not None:
+            val_probe_enabled = bool(val_probe_enabled)
+            if val_probe_enabled != CONFIG.get("probe_enabled"):
+                CONFIG["probe_enabled"] = val_probe_enabled
+                changed.append("probe_enabled")
+
+        def _validate_int(key: str, min_val: int, max_val: int, label: str):
+            val = body.get(key)
+            if val is not None:
+                try:
+                    val = int(val)
+                    if not (min_val <= val <= max_val):
+                        raise ValueError()
+                except (ValueError, TypeError):
+                    self._send_json(
+                        {"ok": False, "error": f"{label}必须是 {min_val} 到 {max_val} 之间的整数"}, 400
+                    )
+                    return None
+                if val != CONFIG.get(key):
+                    CONFIG[key] = val
+                    changed.append(key)
+            return True
+
+        if _validate_int("probe_interval_sec", 10, 86400, "测活扫描间隔") is None: return
+        if _validate_int("probe_batch_size", 1, 100, "单次扫描节点数") is None: return
+        if _validate_int("probe_concurrency", 1, 32, "测活并发限制") is None: return
+        if _validate_int("probe_stale_seconds", 30, 86400, "节点测活冷却") is None: return
+        if _validate_int("node_retention_hours", 1, 720, "未活动节点保留天数") is None: return
 
         if not changed:
             self._send_json({"ok": True, "changed": [], "message": "无变更"})
