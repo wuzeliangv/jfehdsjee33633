@@ -5,76 +5,99 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NodePool Master · 登录</title>
   <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-color: #f5f5f7;
-      --glass-bg: rgba(255, 255, 255, 0.7);
-      --glass-border: rgba(255, 255, 255, 0.5);
-      --text-main: #1d1d1f;
-      --text-sec: #86868b;
-      --accent: #0066cc;
-      --danger: #ff3b30;
-      --success: #34c759;
-      --font-apple: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      --bg-color: #07080b;
+      --glass-bg: rgba(13, 16, 27, 0.45);
+      --glass-border: rgba(255, 255, 255, 0.05);
+      --text-main: #f8fafc;
+      --text-sec: #94a3b8;
+      
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-gradient: linear-gradient(135deg, #6366f1, #3b82f6);
+      
+      --success: #10b981;
+      --danger: #ef4444;
+      
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0; min-height: 100vh;
       display: flex; align-items: center; justify-content: center;
       background: 
-        radial-gradient(circle at 10% 20%, rgba(220, 240, 255, 0.8), transparent 40%),
-        radial-gradient(circle at 90% 30%, rgba(255, 225, 240, 0.7), transparent 40%),
-        radial-gradient(circle at 50% 90%, rgba(225, 255, 225, 0.7), transparent 40%),
-        #f5f5f7;
+        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15), transparent 45%),
+        radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.15), transparent 45%),
+        var(--bg-color);
       background-attachment: fixed;
       color: var(--text-main);
-      font-family: var(--font-apple);
+      font-family: var(--font-sans);
       -webkit-font-smoothing: antialiased;
     }
+
     .card {
-      width: 100%; max-width: 400px;
-      padding: 40px 36px;
+      width: 90%; max-width: 400px;
+      padding: 44px 38px;
       background: var(--glass-bg);
-      backdrop-filter: blur(30px);
-      -webkit-backdrop-filter: blur(30px);
+      backdrop-filter: blur(35px);
+      -webkit-backdrop-filter: blur(35px);
       border: 1px solid var(--glass-border);
       border-radius: 24px;
-      box-shadow: 0 15px 40px rgba(0,0,0,0.08);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
       text-align: center;
+      transition: border-color 0.3s, box-shadow 0.3s;
     }
-    .logo { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 20px; box-shadow: 0 6px 16px rgba(0,0,0,0.1); }
-    h1 { margin: 0 0 8px; font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
-    .sub { margin: 0 0 32px; font-size: 14px; color: var(--text-sec); }
+
+    .card:hover {
+      border-color: rgba(99, 102, 241, 0.2);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 15px rgba(99, 102, 241, 0.05);
+    }
+
+    .logo { 
+      width: 72px; height: 72px; border-radius: 18px; margin-bottom: 24px; 
+      box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+    }
+
+    h1 { margin: 0 0 10px; font-size: 25px; font-weight: 700; letter-spacing: -0.5px; }
+    .sub { margin: 0 0 36px; font-size: 14px; color: var(--text-sec); }
     
     .form-group { text-align: left; }
-    label { display: block; font-size: 12px; color: var(--text-sec); margin-bottom: 8px; font-weight: 600; }
+    label { display: block; font-size: 11.5px; color: var(--text-sec); margin-bottom: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
     input {
-      width: 100%; height: 46px; padding: 0 16px;
-      background: rgba(255,255,255,0.9);
-      border: 1px solid rgba(0,0,0,0.1);
+      width: 100%; height: 48px; padding: 0 16px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.08);
       border-radius: 12px;
       color: var(--text-main); font-size: 15px;
       font-family: "SF Mono", "Fira Code", monospace;
-      outline: none; transition: all .2s;
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+      outline: none; transition: all .25s;
     }
-    input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,102,204,0.15); }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25); background: rgba(0,0,0,0.4); }
+    
     button {
-      width: 100%; height: 46px; margin-top: 24px;
-      background: var(--accent);
+      width: 100%; height: 48px; margin-top: 28px;
+      background: var(--accent-gradient);
       color: #fff; border: none; border-radius: 12px;
       font-size: 15px; font-weight: 600; cursor: pointer;
-      transition: all .2s; box-shadow: 0 4px 12px rgba(0,102,204,0.3);
+      transition: all .25s cubic-bezier(0.16, 1, 0.3, 1); 
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
     }
-    button:hover { background: #0077ed; box-shadow: 0 6px 16px rgba(0,102,204,0.4); transform: translateY(-1px); }
+    button:hover { box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35); transform: translateY(-1.5px); }
+    button:active { transform: translateY(0); }
     button:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
     
-    .msg { margin-top: 16px; font-size: 13px; font-weight: 500; min-height: 18px; }
-    .msg.err { color: var(--danger); }
-    .msg.ok { color: var(--success); }
+    .msg { margin-top: 20px; font-size: 13.5px; font-weight: 600; min-height: 18px; }
+    .msg.err { color: var(--danger); text-shadow: 0 0 8px rgba(239, 68, 68, 0.2); }
+    .msg.ok { color: var(--success); text-shadow: 0 0 8px rgba(16, 185, 129, 0.2); }
     
-    .footer { margin-top: 32px; font-size: 12px; color: var(--text-sec); text-align: center; }
-    .footer code { font-family: "SF Mono", monospace; color: #1d1d1f; background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px; }
+    .footer { margin-top: 36px; font-size: 12px; color: var(--text-sec); text-align: center; line-height: 1.6; }
+    .footer code { font-family: "SF Mono", monospace; color: #a5b4fc; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); padding: 3px 8px; border-radius: 6px; display: inline-block; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -93,7 +116,7 @@
     </form>
     
     <div class="footer">
-      如忘密码，请在服务器终端执行<br><br>
+      如忘密码，请在服务器终端执行<br>
       <code>./master_admin.py show-tokens</code>
     </div>
   </div>
