@@ -7,23 +7,55 @@
   <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    // Apply theme BEFORE paint to prevent flash of wrong theme
+    (function() {
+      var t = localStorage.getItem('np_master_theme') || 'apple';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <style>
-    :root {
+    /* ============================================================
+       THEME SYSTEM — "Classic" (indigo) is :root default,
+       "Apple" matches the Agent (被控端) Outfit-based UI.
+       ============================================================ */
+    :root, [data-theme="classic"] {
       --bg-color: #050609;
+      --bg-grad-1: rgba(99, 102, 241, 0.12);
+      --bg-grad-1-pos: 5% 5%;
+      --bg-grad-2: rgba(6, 182, 212, 0.12);
+      --bg-grad-2-pos: 95% 20%;
+      --bg-grad-3: rgba(16, 185, 129, 0.08);
+      --bg-grad-3-pos: 50% 85%;
+
       --sidebar-bg: rgba(10, 12, 22, 0.65);
+      --sidebar-blur: blur(40px);
+      --sidebar-radius: 0;
+      --sidebar-border-right: 1px solid var(--glass-border);
+      --sidebar-shadow: none;
+
       --glass-bg: rgba(14, 18, 30, 0.45);
       --glass-border: rgba(255, 255, 255, 0.05);
       --glass-border-hover: rgba(99, 102, 241, 0.2);
       --glass-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+      --glass-blur: blur(30px);
+      --glass-radius: 20px;
+
       --text-main: #f8fafc;
       --text-sec: #94a3b8;
-      
+
       --accent: #6366f1;
       --accent-hover: #4f46e5;
       --accent-glow: rgba(99, 102, 241, 0.35);
       --accent-gradient: linear-gradient(135deg, #6366f1, #3b82f6);
-      
+      --accent-gradient-hover: linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(59, 130, 246, 0.95));
+      --accent-btn-bg: linear-gradient(135deg, rgba(99, 102, 241, 0.8), rgba(59, 130, 246, 0.8));
+      --accent-btn-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
+      --accent-btn-hover-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+      --accent-nav-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+      --accent-focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.2);
+
       --success: #10b981;
       --success-glow: rgba(16, 185, 129, 0.25);
       --danger: #ef4444;
@@ -32,19 +64,136 @@
       --warn-glow: rgba(245, 158, 11, 0.25);
       --cyan: #06b6d4;
       --cyan-glow: rgba(6, 182, 212, 0.25);
-      
+
       --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+      --brand-grad: linear-gradient(135deg, #fff 50%, #a5b4fc 100%);
+      --nav-active-icon: #fff;
+      --logout-bg: rgba(239, 68, 68, 0.08);
+      --logout-border: rgba(239, 68, 68, 0.15);
+      --logout-color: #fca5a5;
+      --logout-hover-bg: rgba(239, 68, 68, 0.18);
+      --logout-hover-border: rgba(239, 68, 68, 0.35);
+
+      --input-bg: rgba(0, 0, 0, 0.25);
+      --input-border: rgba(255, 255, 255, 0.08);
+      --input-focus-bg: rgba(0, 0, 0, 0.35);
+
+      --terminal-bg: #08090d;
+      --terminal-header-bg: #0f121d;
+
+      --modal-bg: rgba(18, 22, 38, 0.85);
+      --overlay-bg: rgba(4, 5, 8, 0.85);
+
+      /* Gate button hover colors — classic uses the existing scheme */
+      --gate-toggle-off-bg: rgba(245, 158, 11, 0.1);
+      --gate-toggle-off-border: rgba(245, 158, 11, 0.3);
+      --gate-toggle-off-color: #fbbf24;
+      --gate-toggle-on-bg: rgba(16, 185, 129, 0.1);
+      --gate-toggle-on-border: rgba(16, 185, 129, 0.3);
+      --gate-toggle-on-color: #34d399;
+      --gate-delete-bg: rgba(239, 68, 68, 0.1);
+      --gate-delete-border: rgba(239, 68, 68, 0.3);
+      --gate-delete-color: #fca5a5;
+      --gate-push-bg: rgba(99, 102, 241, 0.1);
+      --gate-push-border: rgba(99, 102, 241, 0.3);
+      --gate-push-color: #a5b4fc;
+      --gate-pull-bg: rgba(6, 182, 212, 0.1);
+      --gate-pull-border: rgba(6, 182, 212, 0.3);
+      --gate-pull-color: #67e8f9;
+    }
+
+    [data-theme="apple"] {
+      --bg-color: #0c0c0f;
+      --bg-grad-1: rgba(0, 122, 255, 0.14);
+      --bg-grad-1-pos: 18% 12%;
+      --bg-grad-2: rgba(255, 149, 0, 0.11);
+      --bg-grad-2-pos: 86% 18%;
+      --bg-grad-3: rgba(52, 199, 89, 0.10);
+      --bg-grad-3-pos: 72% 82%;
+
+      --sidebar-bg: rgba(28, 28, 30, 0.66);
+      --sidebar-blur: blur(40px) saturate(180%);
+      --sidebar-radius: 28px;
+      --sidebar-border-right: none;
+      --sidebar-shadow: 0 24px 60px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+      --glass-bg: rgba(22, 22, 26, 0.7);
+      --glass-border: rgba(255, 255, 255, 0.09);
+      --glass-border-hover: rgba(0, 122, 255, 0.25);
+      --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      --glass-blur: blur(28px) saturate(180%);
+      --glass-radius: 22px;
+
+      --text-main: #f5f5f7;
+      --text-sec: #a1a1a6;
+
+      --accent: #007aff;
+      --accent-hover: #0068d6;
+      --accent-glow: rgba(0, 122, 255, 0.35);
+      --accent-gradient: linear-gradient(135deg, #007aff 0%, #5856d6 100%);
+      --accent-gradient-hover: linear-gradient(135deg, #1485ff 0%, #6866e6 100%);
+      --accent-btn-bg: linear-gradient(135deg, #007aff 0%, #5856d6 100%);
+      --accent-btn-shadow: 0 4px 14px rgba(0, 122, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      --accent-btn-hover-shadow: 0 6px 20px rgba(0, 122, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+      --accent-nav-shadow: 0 8px 24px rgba(0, 122, 255, 0.25);
+      --accent-focus-ring: 0 0 0 3px rgba(0, 122, 255, 0.15);
+
+      --success: #34c759;
+      --success-glow: rgba(52, 199, 89, 0.25);
+      --danger: #ff453a;
+      --danger-glow: rgba(255, 69, 58, 0.25);
+      --warn: #ff9f0a;
+      --warn-glow: rgba(255, 159, 10, 0.25);
+      --cyan: #06b6d4;
+      --cyan-glow: rgba(6, 182, 212, 0.25);
+
+      --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+
+      --brand-grad: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+      --nav-active-icon: #7c8fff;
+      --logout-bg: rgba(255, 69, 58, 0.1);
+      --logout-border: rgba(255, 69, 58, 0.2);
+      --logout-color: #ff453a;
+      --logout-hover-bg: rgba(255, 69, 58, 0.2);
+      --logout-hover-border: rgba(255, 69, 58, 0.35);
+
+      --input-bg: rgba(255, 255, 255, 0.03);
+      --input-border: rgba(255, 255, 255, 0.1);
+      --input-focus-bg: rgba(0, 122, 255, 0.04);
+
+      --terminal-bg: #050811;
+      --terminal-header-bg: #0b0e18;
+
+      --modal-bg: rgba(20, 20, 24, 0.9);
+      --overlay-bg: rgba(0, 0, 0, 0.7);
+
+      --gate-toggle-off-bg: rgba(255, 159, 10, 0.1);
+      --gate-toggle-off-border: rgba(255, 159, 10, 0.3);
+      --gate-toggle-off-color: #ff9f0a;
+      --gate-toggle-on-bg: rgba(52, 199, 89, 0.1);
+      --gate-toggle-on-border: rgba(52, 199, 89, 0.3);
+      --gate-toggle-on-color: #34c759;
+      --gate-delete-bg: rgba(255, 69, 58, 0.1);
+      --gate-delete-border: rgba(255, 69, 58, 0.3);
+      --gate-delete-color: #ff453a;
+      --gate-push-bg: rgba(0, 122, 255, 0.1);
+      --gate-push-border: rgba(0, 122, 255, 0.3);
+      --gate-push-color: #64adff;
+      --gate-pull-bg: rgba(6, 182, 212, 0.1);
+      --gate-pull-border: rgba(6, 182, 212, 0.3);
+      --gate-pull-color: #67e8f9;
     }
 
     * { box-sizing: border-box; outline: none; margin: 0; padding: 0; }
 
     body {
       font-family: var(--font-sans);
-      background: 
-        radial-gradient(circle at 5% 5%, rgba(99, 102, 241, 0.12), transparent 40%),
-        radial-gradient(circle at 95% 20%, rgba(6, 182, 212, 0.12), transparent 40%),
-        radial-gradient(circle at 50% 85%, rgba(16, 185, 129, 0.08), transparent 40%),
+      background:
+        radial-gradient(circle at var(--bg-grad-1-pos), var(--bg-grad-1), transparent 40%),
+        radial-gradient(circle at var(--bg-grad-2-pos), var(--bg-grad-2), transparent 40%),
+        radial-gradient(circle at var(--bg-grad-3-pos), var(--bg-grad-3), transparent 40%),
         var(--bg-color);
       background-attachment: fixed;
       color: var(--text-main);
@@ -61,11 +210,11 @@
 
     .glass {
       background: var(--glass-bg);
-      backdrop-filter: blur(30px);
-      -webkit-backdrop-filter: blur(30px);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
       border: 1px solid var(--glass-border);
       box-shadow: var(--glass-shadow);
-      border-radius: 20px;
+      border-radius: var(--glass-radius);
     }
 
     /* Unified Button Styling */
@@ -108,15 +257,15 @@
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.8), rgba(59, 130, 246, 0.8));
+      background: var(--accent-btn-bg);
       color: white;
       border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
+      box-shadow: var(--accent-btn-shadow);
     }
 
     .btn-primary:hover {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(59, 130, 246, 0.95));
-      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+      background: var(--accent-gradient-hover);
+      box-shadow: var(--accent-btn-hover-shadow);
       border-color: rgba(255, 255, 255, 0.15);
     }
 
@@ -155,47 +304,44 @@
 
     /* Colors and icons hover for Gateway card buttons */
     .btn-gate-toggle-off:hover {
-      background: rgba(245, 158, 11, 0.1);
-      border-color: rgba(245, 158, 11, 0.3);
-      color: #fbbf24;
-      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.05);
+      background: var(--gate-toggle-off-bg);
+      border-color: var(--gate-toggle-off-border);
+      color: var(--gate-toggle-off-color);
     }
 
     .btn-gate-toggle-on:hover {
-      background: rgba(16, 185, 129, 0.1);
-      border-color: rgba(16, 185, 129, 0.3);
-      color: #34d399;
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.05);
+      background: var(--gate-toggle-on-bg);
+      border-color: var(--gate-toggle-on-border);
+      color: var(--gate-toggle-on-color);
     }
 
     .btn-gate-delete:hover {
-      background: rgba(239, 68, 68, 0.1);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #fca5a5;
-      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.05);
+      background: var(--gate-delete-bg);
+      border-color: var(--gate-delete-border);
+      color: var(--gate-delete-color);
     }
 
     .btn-gate-push:hover {
-      background: rgba(99, 102, 241, 0.1);
-      border-color: rgba(99, 102, 241, 0.3);
-      color: #a5b4fc;
-      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.05);
+      background: var(--gate-push-bg);
+      border-color: var(--gate-push-border);
+      color: var(--gate-push-color);
     }
 
     .btn-gate-pull:hover {
-      background: rgba(6, 182, 212, 0.1);
-      border-color: rgba(6, 182, 212, 0.3);
-      color: #67e8f9;
-      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.05);
+      background: var(--gate-pull-bg);
+      border-color: var(--gate-pull-border);
+      color: var(--gate-pull-color);
     }
 
     /* Left Sidebar */
     .sidebar {
       width: 280px;
       background: var(--sidebar-bg);
-      backdrop-filter: blur(40px);
-      -webkit-backdrop-filter: blur(40px);
-      border-right: 1px solid var(--glass-border);
+      backdrop-filter: var(--sidebar-blur);
+      -webkit-backdrop-filter: var(--sidebar-blur);
+      border-right: var(--sidebar-border-right);
+      border-radius: var(--sidebar-radius);
+      box-shadow: var(--sidebar-shadow);
       display: flex;
       flex-direction: column;
       height: 100vh;
@@ -204,6 +350,19 @@
       top: 0;
       z-index: 100;
       padding: 32px 24px;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    [data-theme="apple"] .sidebar {
+      height: calc(100vh - 32px);
+      top: 16px;
+      left: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+    }
+
+    [data-theme="apple"] .main-area {
+      margin-left: 312px;
+      width: calc(100% - 312px);
     }
 
     .brand-section {
@@ -224,7 +383,7 @@
       font-size: 18px;
       font-weight: 800;
       letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #fff 50%, #a5b4fc 100%);
+      background: var(--brand-grad);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -283,11 +442,11 @@
       color: #fff;
       background: var(--accent-gradient);
       border-color: rgba(255, 255, 255, 0.1);
-      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+      box-shadow: var(--accent-nav-shadow);
     }
 
     .nav-item.active button svg {
-      stroke: #fff;
+      stroke: var(--nav-active-icon);
     }
 
     .sidebar-footer {
@@ -318,9 +477,9 @@
       width: 100%;
       padding: 12px 16px;
       border-radius: 12px;
-      background: rgba(239, 68, 68, 0.08);
-      border: 1px solid rgba(239, 68, 68, 0.15);
-      color: #fca5a5;
+      background: var(--logout-bg);
+      border: 1px solid var(--logout-border);
+      color: var(--logout-color);
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
@@ -332,8 +491,8 @@
     }
 
     .btn-logout:hover {
-      background: rgba(239, 68, 68, 0.18);
-      border-color: rgba(239, 68, 68, 0.35);
+      background: var(--logout-hover-bg);
+      border-color: var(--logout-hover-border);
       transform: translateY(-1px);
     }
 
@@ -654,15 +813,15 @@
       display: flex;
       flex-direction: column;
       height: calc(100vh - 180px);
-      background: #08090d;
-      border-radius: 20px;
+      background: var(--terminal-bg);
+      border-radius: var(--glass-radius);
       border: 1px solid rgba(255, 255, 255, 0.04);
       overflow: hidden;
       box-shadow: var(--glass-shadow);
     }
 
     .terminal-header {
-      background: #0f121d;
+      background: var(--terminal-header-bg);
       padding: 16px 24px;
       display: flex;
       align-items: center;
@@ -720,8 +879,8 @@
       padding: 0 16px;
       font-size: 14.5px;
       color: var(--text-main);
-      background: rgba(0, 0, 0, 0.25);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
       border-radius: 12px;
       transition: all 0.25s;
       font-family: var(--font-mono);
@@ -729,21 +888,21 @@
 
     .input-field:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-      background: rgba(0, 0, 0, 0.35);
+      box-shadow: var(--accent-focus-ring);
+      background: var(--input-focus-bg);
     }
 
     /* Overlays (Confirm / Prompt) */
     .overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(4, 5, 8, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      background: var(--overlay-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
       display: flex; align-items: center; justify-content: center;
       z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .overlay.show { opacity: 1; pointer-events: auto; }
     
     .modal {
-      background: rgba(18, 22, 38, 0.85); backdrop-filter: blur(35px); -webkit-backdrop-filter: blur(35px);
+      background: var(--modal-bg); backdrop-filter: blur(35px); -webkit-backdrop-filter: blur(35px);
       border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 24px; padding: 36px;
       width: 90%; max-width: 440px; box-shadow: 0 30px 60px rgba(0,0,0,0.6);
       transform: scale(0.95) translateY(12px); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -820,7 +979,33 @@
         width: 100%;
         padding: 24px;
       }
+      [data-theme="apple"] .sidebar {
+        height: auto;
+        top: 0;
+        left: 0;
+        border-radius: 0;
+        border: none;
+      }
+      [data-theme="apple"] .main-area {
+        margin-left: 0;
+        width: 100%;
+      }
     }
+
+    /* Log syntax highlighting */
+    .log-time { color: #64748b; }
+    .log-mod { color: var(--accent); font-weight: 600; }
+    .c-green { color: var(--success); }
+    .c-red { color: var(--danger); }
+    .c-yellow { color: var(--warn); }
+    .c-blue { color: var(--cyan); }
+    .country-tag { font-weight: 700; color: var(--accent); }
+    .mono { font-family: var(--font-mono); }
+    .mac-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .mac-dot.r { background: #ff5f56; }
+    .mac-dot.y { background: #ffbd2e; }
+    .mac-dot.g { background: #27c93f; }
+    .term-title { font-size: 12px; color: var(--text-sec); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
   </style>
 </head>
 <body>
@@ -1034,6 +1219,15 @@
             <input type="text" class="input-field" id="input-enroll-token" placeholder="设置新的被控端网关接入验证口令">
           </div>
         </div>
+        <div class="form-item">
+          <div class="input-box">
+            <label for="input-ui-theme">界面主题风格 (UI Style Theme)</label>
+            <select class="input-field" id="input-ui-theme" style="appearance: none; background: rgba(255,255,255,0.03); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.08); padding: 12px 16px; border-radius: 12px; font-weight:600; cursor: pointer;">
+              <option value="apple" style="background:#121626; color:#cbd5e1;">Apple Modern (被控端拟物化高质感风格)</option>
+              <option value="classic" style="background:#121626; color:#cbd5e1;">Classic Indigo (原主控经典靛蓝风格)</option>
+            </select>
+          </div>
+        </div>
 
         <div class="form-title" style="margin-top: 36px;">
           主控测活与清理参数设置
@@ -1160,6 +1354,12 @@
         if (res.ok) {
           document.getElementById("input-admin-token").value = res.settings.admin_token || "";
           document.getElementById("input-enroll-token").value = res.settings.enroll_token || "";
+          
+          const theme = res.settings.ui_theme || "apple";
+          document.getElementById("input-ui-theme").value = theme;
+          document.documentElement.setAttribute('data-theme', theme);
+          localStorage.setItem('np_master_theme', theme);
+
           document.getElementById("input-probe-enabled").value = res.settings.probe_enabled !== false ? "true" : "false";
           document.getElementById("input-probe-interval-sec").value = res.settings.probe_interval_sec || 300;
           document.getElementById("input-probe-batch-size").value = res.settings.probe_batch_size || 12;
@@ -1496,6 +1696,7 @@
     async function saveSettings() {
       const adminToken = document.getElementById("input-admin-token").value.trim();
       const enrollToken = document.getElementById("input-enroll-token").value.trim();
+      const uiTheme = document.getElementById("input-ui-theme").value;
       const probeEnabled = document.getElementById("input-probe-enabled").value === "true";
       const probeIntervalSec = parseInt(document.getElementById("input-probe-interval-sec").value) || 300;
       const probeBatchSize = parseInt(document.getElementById("input-probe-batch-size").value) || 12;
@@ -1514,6 +1715,7 @@
           body: JSON.stringify({
             admin_token: adminToken,
             enroll_token: enrollToken,
+            ui_theme: uiTheme,
             probe_enabled: probeEnabled,
             probe_interval_sec: probeIntervalSec,
             probe_batch_size: probeBatchSize,
@@ -1523,6 +1725,8 @@
           })
         });
         if (res.ok) {
+          document.documentElement.setAttribute('data-theme', uiTheme);
+          localStorage.setItem('np_master_theme', uiTheme);
           toast("偏好设置已成功保存并重新部署", "ok");
           refresh();
         } else {
@@ -1537,6 +1741,9 @@
       try { await fetch("/logout", { method: "POST" }); } catch (e) {}
       window.location.href = "/login";
     }
+
+    // Load initial settings (and apply the backend-configured theme style)
+    fetchSettingsToInputs();
 
     refresh();
     timer = setInterval(refresh, 15000);

@@ -812,6 +812,7 @@ class MasterHandler(BaseHTTPRequestHandler):
             "settings": {
                 "admin_token": CONFIG.get("admin_token", ""),
                 "enroll_token": CONFIG.get("enroll_token", ""),
+                "ui_theme": CONFIG.get("ui_theme", "apple"),
                 "probe_enabled": CONFIG.get("probe_enabled", True),
                 "probe_interval_sec": CONFIG.get("probe_interval_sec", 300),
                 "probe_batch_size": CONFIG.get("probe_batch_size", 12),
@@ -856,6 +857,15 @@ class MasterHandler(BaseHTTPRequestHandler):
             if new_enroll != CONFIG.get("enroll_token"):
                 CONFIG["enroll_token"] = new_enroll
                 changed.append("enroll_token")
+
+        # 界面主题控制
+        val_ui_theme = body.get("ui_theme")
+        if val_ui_theme is not None:
+            val_ui_theme = str(val_ui_theme).strip().lower()
+            if val_ui_theme in ["apple", "classic"]:
+                if val_ui_theme != CONFIG.get("ui_theme"):
+                    CONFIG["ui_theme"] = val_ui_theme
+                    changed.append("ui_theme")
 
         # 测活控制
         val_probe_enabled = body.get("probe_enabled")
