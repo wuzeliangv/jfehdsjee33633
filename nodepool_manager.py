@@ -2140,68 +2140,72 @@ def auto_switch_node(attempt: int = 0, excluded_ids: set[str] | None = None) -> 
         )
         
         def bg_fetch_and_switch():
-            # 先快速尝试从主控拉该地区节点(秒级);失败再走原 VPN Gate 兜底
-            try:
-                mc = master_client.get_global_client()
-                if (
-                    mc is not None
-                    and mc.is_enabled()
-                    and routing_mode == "fixed_region"
-                    and target_country
-                ):
-                    print(
-                        f"[自动切换后台补齐] 尝试从主控快速拉取 {target_country} 的活节点...",
-                        flush=True,
-                    )
-                    added = master_fetch_and_test_country(target_country)
-                    if added > 0:
-                        print(
-                            f"[自动切换后台补齐] 主控补给 {added} 个,尝试再次切换",
-                            flush=True,
-                        )
-                        log_to_json(
-                            "INFO",
-                            "Master",
-                            f"主控快速补给 {target_country}:新增可用 {added} 个,触发再次切换",
-                        )
-                        auto_switch_node()
-                        return
-            except Exception as e:
-                print(f"[自动切换后台补齐] 主控快速拉取失败,降级到 VPN Gate: {e}", flush=True)
+            # 获取主控客户端
+            mc = master_client.get_global_client()
+            master_mode = mc is not None and mc.is_enabled()
 
-            # 如果本地没有任何可用备用节点，且没有主控补充，我们直接触发一次即时拉取与测活，而不是等待 45 分钟！
-            # 为了防止网络彻底断开时导致无限死循环，我们在本轮失败后等待 10 秒，然后重试。如果重试依然失败，则后续每次等待时间增加（退避算法），上限为 5 分钟。
-            backoff = 10
-            for attempt_retry in range(5):
-                print(f"[自动切换后台补齐] {backoff} 秒后将尝试重新获取节点并重连...", flush=True)
-                time.sleep(backoff)
-                try:
-                    # 强力拉取与测速
-                    maintain_valid_nodes(force=True, is_manual=True)
-                    # 重新检查是否有可用节点
-                    nodes = read_nodes()
-                    available = [n for n in nodes if n.get("probe_status") == "available" and not n.get("active")]
-                    if available:
-                        print("[自动切换后台补齐] 成功拉取到新的可用节点，触发重新切换", flush=True)
-                        auto_switch_node()
-                        return
-                except Exception as e:
-                    print(f"[自动切换后台补齐] 尝试获取并测试节点失败: {e}", flush=True)
-                backoff = min(300, backoff * 2) # 指数退避，最大 5 分钟
-            
-            # 如果重试了 5 次依然没有活节点，那么我们退入长周期等待（每 10 分钟重试一次）
-            while True:
-                print("[自动切换后台补齐] 节点持续匮乏，10 分钟后将再次尝试重新获取...", flush=True)
-                time.sleep(600)
-                try:
-                    maintain_valid_nodes(force=True, is_manual=True)
-                    nodes = read_nodes()
-                    available = [n for n in nodes if n.get("probe_status") == "available" and not n.get("active")]
-                    if available:
-                        auto_switch_node()
-                        return
-                except Exception as e:
-                    print(f"[自动切换后台补齐] 尝试获取并测试节点失败: {e}", flush=True)
+            if master_mode:
+                # ─── 主控协作模式 ───
+                # 主控端会对所有上报节点进行并发测活，所以每隔 60 秒向主控拉取一次精准锁定国家的活节点即可
+                # 如果主控暂时没有该国家的节点，就保持断开状态，静默等待下一次查询
+                print("[自动切换后台补齐] 已启用主控协作。系统将每隔 60 秒向主控索要一次锁区可用节点...", flush=True)
+                while True:
+                    time.sleep(60)
+                    try:
+                        # 重新加载配置，检查是否已被用户手动禁用或已建立连接
+                        ui_cfg = load_ui_config()
+                        curr_conn_enabled = ui_cfg.get("connection_enabled", True)
+                        curr_routing_mode = ui_cfg.get("routing_mode", "auto")
+                        curr_target_country = ui_cfg.get("force_country", "")
+
+                        if not curr_conn_enabled:
+                            print("[自动切换后台补齐] 连接已被禁用，退出重连线程。", flush=True)
+                            return
+                        if active_openvpn_running():
+                            print("[自动切换后台补齐] 检测到已有活跃 VPN 连接，退出重连线程。", flush=True)
+                            return
+
+                        # 如果依然处于固定地区（锁区）模式
+                        if curr_routing_mode == "fixed_region" and curr_target_country:
+                            print(f"[自动切换后台补齐] 正在向主控索要锁定国家【{curr_target_country}】的可用节点...", flush=True)
+                            added = master_fetch_and_test_country(curr_target_country, min_interval=0.0)
+                            if added > 0:
+                                print(f"[自动切换后台补齐] 成功从主控补充 {added} 个锁区存活节点，触发自动切换...", flush=True)
+                                auto_switch_node()
+                                return
+                        else:
+                            # 退出锁区模式后（如变更为自动路由），则尝试本地可用节点恢复
+                            nodes = read_nodes()
+                            available = [n for n in nodes if n.get("probe_status") == "available" and not n.get("active")]
+                            if available:
+                                auto_switch_node()
+                                return
+                    except Exception as e:
+                        print(f"[自动切换后台补齐] 向主控索要锁区节点失败: {e}", flush=True)
+            else:
+                # ─── 独立自治模式 ───
+                # 订阅源存在 45 分钟的 CDN 强缓存，同 IP 频繁拉取并无意义。
+                # 在此降级为 45 分钟的静默等待周期，以避免对订阅源进行无意义的重试。
+                print("[自动切换后台补齐] 未启用主控。由于订阅源具有 45 分钟的强缓存，系统将每 45 分钟重新拉取一次订阅源进行重试...", flush=True)
+                while True:
+                    time.sleep(2700)  # 等待 45 分钟缓存失效
+                    try:
+                        ui_cfg = load_ui_config()
+                        curr_conn_enabled = ui_cfg.get("connection_enabled", True)
+                        if not curr_conn_enabled:
+                            return
+                        if active_openvpn_running():
+                            return
+
+                        print("[自动切换后台补齐] 45分钟等待已满，正在重新拉取订阅源节点...", flush=True)
+                        maintain_valid_nodes(force=True, is_manual=True)
+                        nodes = read_nodes()
+                        available = [n for n in nodes if n.get("probe_status") == "available" and not n.get("active")]
+                        if available:
+                            auto_switch_node()
+                            return
+                    except Exception as e:
+                        print(f"[自动切换后台补齐] 重新获取订阅节点失败: {e}", flush=True)
         
         threading.Thread(target=bg_fetch_and_switch, daemon=True).start()
 
