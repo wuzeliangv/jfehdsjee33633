@@ -3753,8 +3753,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         elif effective_path == "/api/master_trigger_pull":
             try:
-                ui_cfg = load_ui_config()
-                target_country = ui_cfg.get("force_country", "") or ""
+                body = {}
+                try:
+                    if int(self.headers.get("Content-Length", 0)) > 0:
+                        body = self.read_json_body()
+                except Exception:
+                    pass
+                
+                target_country = str(body.get("country") or "").strip()
+                if not target_country:
+                    ui_cfg = load_ui_config()
+                    target_country = ui_cfg.get("force_country", "") or ""
                 
                 # Use a fire-and-forget thread so the API responds immediately
                 def pull_task():

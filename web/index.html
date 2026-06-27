@@ -3312,8 +3312,15 @@ function exportLogContent() {
   URL.revokeObjectURL(url);
 }
     async function triggerMasterPull() {
+      let ccode = prompt("如果你想强行指定拉取某个国家（例如 HK, JP, US），请在此输入。\n如果不指定（留空直接确定），则按该网关的网络设置进行拉取：");
+      if (ccode === null) return;
+      ccode = ccode.trim().toUpperCase();
       try {
-        const res = await fetch("./api/master_trigger_pull", { method: "POST" });
+        const res = await fetch("./api/master_trigger_pull", { 
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country: ccode })
+        });
         const data = await res.json();
         if (data.ok) alert(data.msg);
         else alert(data.error || "触发拉取失败");
