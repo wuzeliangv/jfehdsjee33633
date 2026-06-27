@@ -171,6 +171,7 @@ class MasterClient:
 
         req = urllib.request.Request(url, method=method, data=data)
         req.add_header("Content-Type", "application/json; charset=utf-8")
+        req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         if use_enroll:
             req.add_header("Authorization", f"Bearer {enroll}")
         else:
