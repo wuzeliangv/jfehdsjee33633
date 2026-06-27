@@ -5,145 +5,318 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NodePool Master Dashboard</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
     :root {
-      --bg: #0f1117;
-      --bg-card: rgba(255,255,255,0.04);
-      --bg-card-2: rgba(255,255,255,0.025);
-      --border: rgba(255,255,255,0.08);
-      --text: #e6e8ee;
-      --text-dim: #98a0b3;
-      --accent: #5b9dff;
-      --danger: #f43f5e;
-      --success: #10b981;
-      --warn: #f59e0b;
+      --bg: #07080c;
+      --bg-gradient: radial-gradient(circle at 50% 0%, #151a2e 0%, #07080c 100%);
+      --bg-card: rgba(17, 20, 32, 0.65);
+      --bg-card-hover: rgba(23, 27, 45, 0.8);
+      --border: rgba(255, 255, 255, 0.04);
+      --border-hover: rgba(255, 255, 255, 0.08);
+      --text: #eef1f6;
+      --text-dim: #7f8a9e;
+      --accent: #4d93ff;
+      --accent-glow: rgba(77, 147, 255, 0.2);
+      --danger: #ff4d6a;
+      --danger-glow: rgba(255, 77, 106, 0.2);
+      --success: #00f099;
+      --success-glow: rgba(0, 240, 153, 0.2);
+      --warn: #ffbf00;
+      --warn-glow: rgba(255, 191, 0, 0.2);
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'Fira Code', monospace;
     }
-    * { box-sizing: border-box; }
+
+    * { box-sizing: border-box; outline: none; }
+    
     body {
       margin: 0; min-height: 100vh; padding-bottom: 60px;
-      background: var(--bg); color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg-gradient) no-repeat fixed;
+      color: var(--text);
+      font-family: var(--font-sans);
       font-size: 14px;
+      -webkit-font-smoothing: antialiased;
     }
+
+    /* Scrollbar Design */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.06); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.12); }
+
+    /* Topbar styling */
     .topbar {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 28px;
-      background: rgba(20,22,30,0.7); backdrop-filter: blur(12px);
+      padding: 16px 40px;
+      background: rgba(10, 12, 20, 0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; z-index: 10;
+      position: sticky; top: 0; z-index: 50;
     }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; }
-    .brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--success); box-shadow: 0 0 10px rgba(16,185,129,0.6); }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 17px; letter-spacing: 0.5px; }
+    .brand .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 12px var(--success);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(0, 240, 153, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(0, 240, 153, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 240, 153, 0); }
+    }
+    .refresh-info { font-size: 12px; color: var(--text-dim); margin-left: 12px; font-weight: 400; font-family: var(--font-mono); }
+
     .topbar-actions { display: flex; gap: 12px; align-items: center; }
+
+    /* Buttons styling */
     .btn-ghost {
-      height: 32px; padding: 0 14px; font-size: 12px;
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text);
-      border-radius: 7px; cursor: pointer; transition: background .15s;
+      height: 34px; padding: 0 16px; font-size: 12px; font-weight: 500;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .btn-ghost:hover { background: rgba(255,255,255,0.1); }
-    .btn-danger { color: var(--danger); border-color: rgba(244,63,94,0.3); }
-    .btn-danger:hover { background: rgba(244,63,94,0.12); }
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--border-hover);
+      transform: translateY(-1px);
+    }
+    .btn-ghost:active {
+      transform: translateY(0);
+    }
+    .btn-ghost.btn-danger {
+      color: var(--danger);
+      border-color: rgba(255, 77, 106, 0.15);
+    }
+    .btn-ghost.btn-danger:hover {
+      background: var(--danger-glow);
+      border-color: var(--danger);
+      box-shadow: 0 0 15px rgba(255, 77, 106, 0.1);
+    }
 
-    main { max-width: 1300px; margin: 28px auto; padding: 0 28px; }
-    h2 { margin: 0 0 16px; font-size: 14px; font-weight: 600; color: var(--text-dim);
-         text-transform: uppercase; letter-spacing: 1px; }
-    .row { display: grid; gap: 20px; margin-bottom: 28px; }
-    .row.cards { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
-    .row.two-col { grid-template-columns: 1fr 1.5fr; }
-    @media (max-width: 900px) { .row.two-col { grid-template-columns: 1fr; } }
+    main { max-width: 1400px; margin: 36px auto; padding: 0 40px; }
+    
+    h2 {
+      margin: 0 0 20px; font-size: 12px; font-weight: 600; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 1.5px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    h2::before {
+      content: ''; display: inline-block; width: 4px; height: 12px; background: var(--accent); border-radius: 2px;
+    }
 
+    .row { display: grid; gap: 24px; margin-bottom: 36px; }
+    .row.cards { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+    .row.two-col { grid-template-columns: 1fr 1.8fr; }
+    
+    @media (max-width: 1000px) {
+      .row.two-col { grid-template-columns: 1fr; }
+    }
+
+    /* Card styling */
     .card {
       background: var(--bg-card);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      transition: all .25s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .stat .lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
-    .stat .val { font-size: 30px; font-weight: 600; margin-top: 8px; }
-    .stat.alive .val   { color: var(--success); }
-    .stat.dead  .val   { color: var(--danger); }
-    .stat.unknown .val { color: var(--warn); }
+    .card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+    }
 
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--border); }
+    /* Stat Cards Styling */
+    .stat { display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; }
+    .stat::after {
+      content: ''; position: absolute; top: -50%; right: -50%; width: 120px; height: 120px;
+      background: radial-gradient(circle, rgba(255,255,255,0.01) 0%, transparent 70%);
+      transform: rotate(45deg); pointer-events: none;
+    }
+    .stat .lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 500; }
+    .stat .val { font-size: 32px; font-weight: 700; margin-top: 12px; font-family: var(--font-mono); }
+    
+    .stat.total .val { color: var(--text); }
+    .stat.alive { border-left: 3px solid var(--success); }
+    .stat.alive .val { color: var(--success); text-shadow: 0 0 15px rgba(0, 240, 153, 0.15); }
+    .stat.dead { border-left: 3px solid var(--danger); }
+    .stat.dead .val { color: var(--danger); text-shadow: 0 0 15px rgba(255, 77, 106, 0.15); }
+    .stat.unknown { border-left: 3px solid var(--warn); }
+    .stat.unknown .val { color: var(--warn); text-shadow: 0 0 15px rgba(255, 191, 0, 0.15); }
+    .stat.agents { border-left: 3px solid var(--accent); }
+    .stat.agents .val { color: var(--accent); text-shadow: 0 0 15px rgba(77, 147, 255, 0.15); }
+
+    /* Tables Styling */
+    table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    th, td { text-align: left; padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--border); }
     th { color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
     tr:last-child td { border-bottom: none; }
-    tbody tr:hover { background: var(--bg-card-2); }
+    tbody tr { transition: background .15s; }
+    tbody tr:hover { background: rgba(255, 255, 255, 0.015); }
 
-    .pill { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
-    .pill.online   { background: rgba(16,185,129,0.15); color: var(--success); }
-    .pill.offline  { background: rgba(244,63,94,0.12); color: var(--danger); }
-    .pill.stalled  { background: rgba(245,158,11,0.12); color: var(--warn); }
-    .pill.disabled { background: rgba(255,255,255,0.06); color: var(--text-dim); }
+    /* Badges / Pills */
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+    .pill::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
 
-    code, .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 12px; }
-    .agent-id { color: var(--text-dim); }
+    .pill.online { background: rgba(0, 240, 153, 0.1); color: var(--success); }
+    .pill.online::before { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    
+    .pill.offline { background: rgba(255, 77, 106, 0.1); color: var(--danger); }
+    .pill.offline::before { background: var(--danger); }
+    
+    .pill.stalled { background: rgba(255, 191, 0, 0.1); color: var(--warn); }
+    .pill.stalled::before { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+    
+    .pill.disabled { background: rgba(255, 255, 255, 0.04); color: var(--text-dim); }
+    .pill.disabled::before { background: var(--text-dim); }
 
-    .agent-actions { display: flex; gap: 6px; flex-wrap: nowrap; white-space: nowrap; }
+    .country-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 6px; padding: 3px 8px; font-weight: 600; color: var(--text);
+      font-size: 11px; font-family: var(--font-mono);
+    }
+
+    code, .mono { font-family: var(--font-mono); font-size: 12px; }
+    .agent-id { color: var(--text-dim); font-size: 11px; margin-top: 4px; }
+    .agent-name { font-weight: 600; color: var(--text); }
+
+    /* Agent list action buttons */
+    .agent-actions { display: flex; gap: 8px; flex-wrap: nowrap; white-space: nowrap; }
     .agent-actions button {
-      height: 26px; padding: 0 10px; font-size: 11px;
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text);
-      border-radius: 6px; cursor: pointer; transition: background .15s;
+      height: 28px; padding: 0 12px; font-size: 11px; font-weight: 500;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: var(--text);
+      border-radius: 6px; cursor: pointer; transition: all .2s;
       white-space: nowrap;
     }
-    .agent-actions button:hover { background: rgba(255,255,255,0.1); }
-    .agent-actions .del { color: var(--danger); border-color: rgba(244,63,94,0.3); }
-    .agent-actions .del:hover { background: rgba(244,63,94,0.12); }
+    .agent-actions button:hover {
+      background: rgba(255,255,255,0.08); border-color: var(--border-hover);
+      transform: translateY(-1px);
+    }
+    .agent-actions .del { color: var(--danger); border-color: rgba(255, 77, 106, 0.15); }
+    .agent-actions .del:hover {
+      background: var(--danger-glow); border-color: var(--danger);
+    }
 
+    /* Console terminal design */
+    .console-container {
+      background: #05060a;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.8);
+    }
+    .console-header {
+      background: #090b10;
+      padding: 10px 16px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .console-dots { display: flex; gap: 6px; }
+    .console-dots span { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .console-dots .red { background: #ff5f56; }
+    .console-dots .yellow { background: #ffbd2e; }
+    .console-dots .green { background: #27c93f; }
+    .console-title { font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); letter-spacing: 0.5px; }
+
+    #log-console {
+      padding: 18px; height: 350px; overflow-y: auto;
+      font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7;
+      color: #b9c4d6; white-space: pre-wrap; word-break: break-all;
+      text-align: left;
+    }
+    .log-line { display: block; margin-bottom: 4px; }
+    .log-time { color: #5c6370; margin-right: 8px; }
+    .log-module { color: #c678dd; margin-right: 8px; font-weight: 500; }
+    .log-msg { color: #abb2bf; }
+    .log-success { color: var(--success); }
+    .log-danger { color: var(--danger); }
+    .log-warn { color: var(--warn); }
+    .log-info { color: var(--accent); }
+
+    /* Toast Notification */
     #toast {
-      position: fixed; right: 24px; bottom: 24px; max-width: 360px;
-      padding: 12px 16px; border-radius: 10px; font-size: 13px;
-      background: rgba(20,22,30,0.95); border: 1px solid var(--border);
-      transform: translateY(150%); transition: transform .25s ease;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      position: fixed; right: 32px; bottom: 32px; max-width: 380px;
+      padding: 14px 20px; border-radius: 10px; font-size: 13px; font-weight: 500;
+      background: rgba(15, 18, 30, 0.95);
+      border: 1px solid var(--border);
+      transform: translateY(150%); transition: transform .3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      z-index: 1000;
+      display: flex; align-items: center; gap: 8px;
     }
     #toast.show { transform: translateY(0); }
-    #toast.ok { border-color: var(--success); }
-    #toast.err { border-color: var(--danger); color: var(--danger); }
+    #toast.ok { border-color: var(--success); color: var(--success); background: rgba(0, 240, 153, 0.05); }
+    #toast.err { border-color: var(--danger); color: var(--danger); background: rgba(255, 77, 106, 0.05); }
 
-    .empty { text-align: center; padding: 40px 0; color: var(--text-dim); font-size: 13px; }
-    .refresh-info { font-size: 11px; color: var(--text-dim); margin-left: 8px; }
-
-    /* Modal Dialog */
+    /* Modal Dialog Settings */
     .modal-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(10, 11, 15, 0.85); backdrop-filter: blur(8px);
+      background: rgba(4, 5, 8, 0.85); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       display: flex; align-items: center; justify-content: center;
       z-index: 100; opacity: 0; pointer-events: none;
-      transition: opacity 0.25s ease;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .modal-overlay.show { opacity: 1; pointer-events: auto; }
     .modal {
-      background: rgba(20, 22, 30, 0.95); border: 1px solid var(--border);
-      border-radius: 16px; padding: 28px; width: 100%; max-width: 460px;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-      transform: scale(0.95); transition: transform 0.25s ease;
+      background: #0f121d;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 20px; padding: 32px; width: 100%; max-width: 480px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+      transform: scale(0.94); transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .modal-overlay.show .modal { transform: scale(1); }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .modal-title { font-size: 15px; font-weight: 600; }
-    .modal-close { background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .modal-title { font-size: 16px; font-weight: 600; color: var(--text); }
+    .modal-close { background: none; border: none; color: var(--text-dim); font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .modal-close:hover { color: var(--text); }
-    .form-group { margin-bottom: 18px; }
-    .form-group label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
     .form-group input {
-      width: 100%; height: 38px; padding: 0 12px;
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text);
-      border-radius: 8px; font-family: inherit; font-size: 13px;
+      width: 100%; height: 42px; padding: 0 14px;
+      background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border); color: var(--text);
+      border-radius: 10px; font-family: inherit; font-size: 13.5px;
+      transition: all 0.2s;
     }
-    .form-group input:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.08); }
-    .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+    .form-group input:focus {
+      border-color: var(--accent);
+      background: rgba(0, 0, 0, 0.35);
+      box-shadow: 0 0 12px rgba(77, 147, 255, 0.1);
+    }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 28px; }
+    
     .btn-primary {
-      height: 32px; padding: 0 18px; font-size: 12px; font-weight: 500;
-      background: var(--accent); border: none; color: #000;
-      border-radius: 7px; cursor: pointer; transition: opacity .15s;
+      height: 34px; padding: 0 20px; font-size: 12px; font-weight: 600;
+      background: var(--accent); border: none; color: #05060a;
+      border-radius: 8px; cursor: pointer; transition: all .2s;
     }
-    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:hover {
+      opacity: 0.95;
+      box-shadow: 0 0 15px var(--accent-glow);
+      transform: translateY(-1px);
+    }
+    
+    .empty { text-align: center; padding: 40px 0; color: var(--text-dim); font-size: 13.5px; }
   </style>
 </head>
 <body>
 
   <div class="topbar">
-    <div class="brand"><span class="dot"></span> NodePool 主控 Dashboard
+    <div class="brand">
+      <span class="dot"></span>
+      NodePool Master Dashboard
       <span class="refresh-info" id="lastRefresh">--</span>
     </div>
     <div class="topbar-actions">
@@ -156,40 +329,83 @@
   <main>
     <h2>节点池概览</h2>
     <div class="row cards">
-      <div class="card stat"><div class="lbl">节点总数</div><div class="val" id="stat-total">--</div></div>
-      <div class="card stat alive"><div class="lbl">存活</div><div class="val" id="stat-alive">--</div></div>
-      <div class="card stat dead"><div class="lbl">死亡</div><div class="val" id="stat-dead">--</div></div>
-      <div class="card stat unknown"><div class="lbl">未知</div><div class="val" id="stat-unknown">--</div></div>
-      <div class="card stat"><div class="lbl">在线被控</div><div class="val" id="stat-agents">--</div></div>
+      <div class="card stat total">
+        <div class="lbl">节点总数</div>
+        <div class="val" id="stat-total">--</div>
+      </div>
+      <div class="card stat alive">
+        <div class="lbl">存活节点</div>
+        <div class="val" id="stat-alive">--</div>
+      </div>
+      <div class="card stat dead">
+        <div class="lbl">死亡节点</div>
+        <div class="val" id="stat-dead">--</div>
+      </div>
+      <div class="card stat unknown">
+        <div class="lbl">未知状态</div>
+        <div class="val" id="stat-unknown">--</div>
+      </div>
+      <div class="card stat agents">
+        <div class="lbl">在线被控</div>
+        <div class="val" id="stat-agents">--</div>
+      </div>
     </div>
 
     <div class="row two-col">
       <div class="card">
         <h2>地区分布</h2>
         <table>
-          <thead><tr><th>国家</th><th>总计</th><th>存活</th></tr></thead>
-          <tbody id="country-tbody"><tr><td colspan="3" class="empty">加载中...</td></tr></tbody>
+          <thead>
+            <tr>
+              <th>国家/地区</th>
+              <th>总计</th>
+              <th>已存活</th>
+            </tr>
+          </thead>
+          <tbody id="country-tbody">
+            <tr><td colspan="3" class="empty">加载中...</td></tr>
+          </tbody>
         </table>
       </div>
 
       <div class="card">
         <h2>被控列表</h2>
         <table>
-          <thead><tr>
-            <th>名称 / Agent</th><th>状态</th><th>上次心跳</th><th>IP</th><th>本地节点池</th><th>操作</th>
-          </tr></thead>
-          <tbody id="agents-tbody"><tr><td colspan="6" class="empty">加载中...</td></tr></tbody>
+          <thead>
+            <tr>
+              <th>节点名称 / ID</th>
+              <th>运行状态</th>
+              <th>上次上报</th>
+              <th>通信 IP</th>
+              <th>本地节点数</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="agents-tbody">
+            <tr><td colspan="6" class="empty">加载中...</td></tr>
+          </tbody>
         </table>
       </div>
     </div>
 
-    <div class="row" style="margin-top: 20px;">
-      <div class="card" style="padding: 20px; width: 100%;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+    <div class="row">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
           <h2 style="margin: 0;">主控系统日志</h2>
-          <button class="btn-ghost" onclick="loadLogs()" style="height: 28px; padding: 0 10px; font-size: 11px;">刷新日志</button>
+          <button class="btn-ghost" onclick="loadLogs()" style="height: 28px; padding: 0 12px; font-size: 11px;">刷新日志</button>
         </div>
-        <div id="log-console" class="mono" style="background: #090a0f; border: 1px solid var(--border); border-radius: 8px; padding: 16px; height: 320px; overflow-y: auto; white-space: pre-wrap; font-size: 12px; line-height: 1.6; color: #a8b2c6; text-align: left;">加载中...</div>
+        <div class="console-container">
+          <div class="console-header">
+            <div class="console-dots">
+              <span class="red"></span>
+              <span class="yellow"></span>
+              <span class="green"></span>
+            </div>
+            <div class="console-title">master@nodepool:~$ tail -n 300 master.log</div>
+            <div style="width: 42px;"></div>
+          </div>
+          <div id="log-console">加载中...</div>
+        </div>
       </div>
     </div>
   </main>
@@ -198,15 +414,15 @@
   <div class="modal-overlay" id="settings-overlay">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title">系统设置</div>
+        <div class="modal-title">系统安全设置</div>
         <button class="modal-close" onclick="closeSettings()">&times;</button>
       </div>
       <div class="form-group">
-        <label for="input-admin-token">管理口令 (Web/CLI)</label>
+        <label for="input-admin-token">管理口令 (Web/CLI 授权 Token)</label>
         <input type="text" id="input-admin-token" placeholder="请输入新的管理口令">
       </div>
       <div class="form-group">
-        <label for="input-enroll-token">被控注册口令 (Agent Enroll)</label>
+        <label for="input-enroll-token">被控注册口令 (Agent Enroll Token)</label>
         <input type="text" id="input-enroll-token" placeholder="请输入新的被控注册口令">
       </div>
       <div class="modal-actions">
@@ -249,7 +465,6 @@
     async function fetchJSON(path, opts) {
       const res = await fetch(path, opts || {});
       if (res.status === 401) {
-        // 鉴权失效,回登录
         window.location.href = "/login";
         throw new Error("unauthorized");
       }
@@ -272,9 +487,9 @@
       } else {
         tbody.innerHTML = s.by_country.map(r => `
           <tr>
-            <td><code>${r.country_code || '??'}</code></td>
-            <td>${r.total}</td>
-            <td><span style="color:var(--success)">${r.alive || 0}</span></td>
+            <td><span class="country-badge">${r.country_code || '??'}</span></td>
+            <td class="mono">${r.total}</td>
+            <td class="mono" style="color:var(--success); font-weight:600;">${r.alive || 0}</td>
           </tr>
         `).join("");
       }
@@ -300,11 +515,11 @@
         return `
           <tr>
             <td>
-              <div>${escapeHtml(a.name || '(未命名)')}</div>
+              <div class="agent-name">${escapeHtml(a.name || '(未命名)')}</div>
               <div class="agent-id mono">${a.agent_id}</div>
             </td>
             <td><span class="pill ${c.cls}">${c.txt}</span></td>
-            <td>${fmtAge(a.last_seen)}</td>
+            <td class="mono">${fmtAge(a.last_seen)}</td>
             <td class="mono">${a.last_ip || '—'}</td>
             <td>${localStats}</td>
             <td style="white-space: nowrap; width: 120px;"><div class="agent-actions">
@@ -331,7 +546,7 @@
           body: JSON.stringify({ agent_id: agentId })
         });
         if (res.ok) {
-          toast(action + " 成功", "ok");
+          toast(action === 'delete' ? '已成功删除' : '操作成功', "ok");
           loadAgents();
         } else {
           toast("操作失败: " + (res.error || ""), "err");
@@ -393,10 +608,8 @@
         });
 
         if (res.ok) {
-          toast("设置已保存", "ok");
+          toast("设置已成功保存", "ok");
           closeSettings();
-          // 如果修改了管理口令，刷新可能需要使用新口令重构的 session，
-          // 因为接口如果重新签发了 cookie，在 fetch 后浏览器会自动更新 cookie
           refresh();
         } else {
           toast("保存失败: " + (res.error || ""), "err");
@@ -408,23 +621,59 @@
       }
     }
 
+    function colorizeLog(line) {
+      if (!line) return "";
+      
+      // Parse time: [2026-06-27 12:45:00]
+      let timePart = "";
+      let remainder = line;
+      const timeMatch = line.match(/^(\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\])/);
+      if (timeMatch) {
+        timePart = `<span class="log-time">${timeMatch[1]}</span>`;
+        remainder = line.substring(timeMatch[1].length);
+      }
+      
+      // Parse module tags like [probe], [http], [master], [cleanup]
+      let modulePart = "";
+      const moduleMatch = remainder.match(/^\s*(\[[a-zA-Z0-9_\-]+\])/);
+      if (moduleMatch) {
+        modulePart = `<span class="log-module">${moduleMatch[1]}</span>`;
+        remainder = remainder.substring(remainder.indexOf(moduleMatch[1]) + moduleMatch[1].length);
+      }
+      
+      // Highlight keywords in log message
+      let msg = escapeHtml(remainder);
+      
+      // Colorize common outcomes
+      msg = msg.replace(/\b(SUCCESS|OK|alive)\b/gi, '<span class="log-success">$1</span>');
+      msg = msg.replace(/\b(FAILED|FAIL|ERROR|dead|unauthorized)\b/gi, '<span class="log-danger">$1</span>');
+      msg = msg.replace(/\b(WARN|WARNING|stalled|unknown)\b/gi, '<span class="log-warn">$1</span>');
+      msg = msg.replace(/\b(checking|checking node|picked|started)\b/gi, '<span class="log-info">$1</span>');
+      
+      return `<div class="log-line">${timePart}${modulePart}<span class="log-msg">${msg}</span></div>`;
+    }
+
     async function loadLogs() {
       try {
         const data = await fetchJSON("/admin/api/logs");
         if (!data.ok) return;
         const consoleEl = document.getElementById("log-console");
         if (data.logs && data.logs.length > 0) {
-          const wasAtBottom = consoleEl.scrollHeight - consoleEl.clientHeight <= consoleEl.scrollTop + 20;
-          consoleEl.textContent = data.logs.join("\n");
+          const wasAtBottom = consoleEl.scrollHeight - consoleEl.clientHeight <= consoleEl.scrollTop + 30;
+          
+          // Colorize logs
+          const coloredHTML = data.logs.map(line => colorizeLog(line)).join("");
+          consoleEl.innerHTML = coloredHTML;
+          
           if (wasAtBottom) {
             consoleEl.scrollTop = consoleEl.scrollHeight;
           }
         } else {
-          consoleEl.textContent = "暂无系统日志记录。";
+          consoleEl.innerHTML = "<div class='empty'>暂无主控系统日志记录。</div>";
         }
       } catch (e) {
         if (e.message !== "unauthorized") {
-          document.getElementById("log-console").textContent = "加载日志失败: " + e.message;
+          document.getElementById("log-console").innerHTML = `<div class='empty' style='color:var(--danger);'>加载日志失败: ${e.message}</div>`;
         }
       }
     }
