@@ -448,6 +448,15 @@ class MasterHandler(BaseHTTPRequestHandler):
         if method == "GET" and path == "/admin/api/logs":
             self._handle_admin_get_logs()
             return
+            
+        # 兜底静态资源匹配 (例如 /logo.png, /favicon.ico)
+        if method == "GET" and "." in path.split("/")[-1]:
+            # 去除前导斜杠
+            filename = path.lstrip("/")
+            # 判断文件是否存在以决定是否 serve_static
+            if _load_static(filename) is not None:
+                self._serve_static(filename)
+                return
 
         self._send_json({"ok": False, "error": "not_found"}, 404)
 
@@ -471,6 +480,14 @@ class MasterHandler(BaseHTTPRequestHandler):
             ctype = "application/javascript; charset=utf-8"
         elif filename.endswith(".css"):
             ctype = "text/css; charset=utf-8"
+        elif filename.endswith(".png"):
+            ctype = "image/png"
+        elif filename.endswith(".jpg") or filename.endswith(".jpeg"):
+            ctype = "image/jpeg"
+        elif filename.endswith(".ico"):
+            ctype = "image/x-icon"
+        elif filename.endswith(".svg"):
+            ctype = "image/svg+xml"
         else:
             ctype = "application/octet-stream"
         self.send_response(200)
