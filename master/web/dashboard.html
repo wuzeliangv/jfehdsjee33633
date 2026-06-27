@@ -7,31 +7,33 @@
   <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-color: #07080b;
-      --glass-bg: rgba(13, 16, 27, 0.45);
+      --bg-color: #050609;
+      --sidebar-bg: rgba(10, 12, 22, 0.65);
+      --glass-bg: rgba(14, 18, 30, 0.45);
       --glass-border: rgba(255, 255, 255, 0.05);
-      --glass-border-glow: rgba(99, 102, 241, 0.15);
+      --glass-border-hover: rgba(99, 102, 241, 0.2);
       --glass-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
       --text-main: #f8fafc;
       --text-sec: #94a3b8;
       
       --accent: #6366f1;
       --accent-hover: #4f46e5;
+      --accent-glow: rgba(99, 102, 241, 0.35);
       --accent-gradient: linear-gradient(135deg, #6366f1, #3b82f6);
       
       --success: #10b981;
-      --success-gradient: linear-gradient(135deg, #10b981, #059669);
+      --success-glow: rgba(16, 185, 129, 0.25);
       --danger: #ef4444;
-      --danger-gradient: linear-gradient(135deg, #ef4444, #dc2626);
+      --danger-glow: rgba(239, 68, 68, 0.25);
       --warn: #f59e0b;
-      --warn-gradient: linear-gradient(135deg, #f59e0b, #d97706);
+      --warn-glow: rgba(245, 158, 11, 0.25);
       --cyan: #06b6d4;
-      --cyan-gradient: linear-gradient(135deg, #06b6d4, #0891b2);
+      --cyan-glow: rgba(6, 182, 212, 0.25);
       
-      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
     }
 
@@ -40,22 +42,22 @@
     body {
       font-family: var(--font-sans);
       background: 
-        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15), transparent 45%),
-        radial-gradient(circle at 90% 10%, rgba(6, 182, 212, 0.15), transparent 45%),
-        radial-gradient(circle at 50% 90%, rgba(16, 185, 129, 0.1), transparent 45%),
+        radial-gradient(circle at 5% 5%, rgba(99, 102, 241, 0.12), transparent 40%),
+        radial-gradient(circle at 95% 20%, rgba(6, 182, 212, 0.12), transparent 40%),
+        radial-gradient(circle at 50% 85%, rgba(16, 185, 129, 0.08), transparent 40%),
         var(--bg-color);
       background-attachment: fixed;
       color: var(--text-main);
       min-height: 100vh;
-      padding-bottom: 60px;
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
+      display: flex;
     }
 
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
 
     .glass {
       background: var(--glass-bg);
@@ -64,154 +66,553 @@
       border: 1px solid var(--glass-border);
       box-shadow: var(--glass-shadow);
       border-radius: 20px;
-      transition: border-color 0.3s ease, box-shadow 0.3s ease;
-    }
-    
-    .glass:hover {
-      border-color: rgba(255, 255, 255, 0.08);
     }
 
-    /* Top Navigation */
-    .navbar {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 16px 28px; margin: 24px auto 30px;
-      max-width: 1200px; width: 94%;
+    /* Left Sidebar */
+    .sidebar {
+      width: 280px;
+      background: var(--sidebar-bg);
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
+      border-right: 1px solid var(--glass-border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 100;
+      padding: 32px 24px;
     }
-    .brand {
-      display: flex; align-items: center; gap: 14px; font-weight: 600; font-size: 20px; letter-spacing: -0.5px;
-    }
-    .brand img {
-      width: 38px; height: 38px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    .brand-refresh { font-size: 12px; color: var(--text-sec); font-weight: 400; margin-top: 2px; }
-    
-    .nav-actions { display: flex; gap: 12px; }
 
-    /* Buttons */
-    .btn {
-      padding: 10px 20px; border-radius: 12px; font-size: 13.5px; font-weight: 600; cursor: pointer;
-      border: none; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 40px;
     }
-    .btn-ghost { background: rgba(255,255,255,0.04); color: #f1f5f9; border: 1px solid rgba(255,255,255,0.05); }
-    .btn-ghost:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.15); transform: translateY(-1px); }
-    .btn-ghost:active { transform: translateY(0); }
-    
-    .btn-primary { background: var(--accent-gradient); color: white; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25); }
-    .btn-primary:hover { box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35); transform: translateY(-1.5px); }
-    .btn-primary:active { transform: translateY(0); }
 
-    .btn-danger { color: #fca5a5; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.25); }
-    .btn-danger:hover { background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.35); transform: translateY(-1px); }
-
-    /* Layout */
-    .container { max-width: 1200px; width: 94%; margin: 0 auto; display: grid; gap: 28px; }
-    .overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
-    .two-col { display: grid; grid-template-columns: 1fr 2fr; gap: 28px; }
-    @media (max-width: 950px) { .two-col { grid-template-columns: 1fr; } }
-
-    /* Stat Cards */
-    .stat-card {
-      padding: 26px; display: flex; flex-direction: column; justify-content: center; gap: 12px;
-      position: relative; overflow: hidden;
+    .brand-section img {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
     }
-    .stat-card::after {
+
+    .brand-info h2 {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 50%, #a5b4fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-info p {
+      font-size: 11px;
+      color: var(--text-sec);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .nav-item button {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-sec);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .nav-item button svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--text-sec);
+      transition: stroke 0.25s;
+    }
+
+    .nav-item button:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.03);
+      border-color: rgba(255, 255, 255, 0.02);
+    }
+
+    .nav-item button:hover svg {
+      stroke: var(--text-main);
+    }
+
+    .nav-item.active button {
+      color: #fff;
+      background: var(--accent-gradient);
+      border-color: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+    }
+
+    .nav-item.active button svg {
+      stroke: #fff;
+    }
+
+    .sidebar-footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .system-status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-sec);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .btn-logout {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.15);
+      color: #fca5a5;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+
+    .btn-logout:hover {
+      background: rgba(239, 68, 68, 0.18);
+      border-color: rgba(239, 68, 68, 0.35);
+      transform: translateY(-1px);
+    }
+
+    /* Main Area Container */
+    .main-area {
+      margin-left: 280px;
+      flex: 1;
+      min-height: 100vh;
+      padding: 40px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      width: calc(100% - 280px);
+    }
+
+    /* Page Header */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      padding-bottom: 24px;
+    }
+
+    .page-title h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+    }
+
+    .page-title p {
+      font-size: 13.5px;
+      color: var(--text-sec);
+      margin-top: 4px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* Content Views */
+    .view-pane {
+      display: none;
+      flex-direction: column;
+      gap: 32px;
+      animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .view-pane.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Stat Cards Grid */
+    .stats-layout {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .stat-box {
+      padding: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-box-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 2;
+    }
+
+    .stat-box-label {
+      font-size: 11.5px;
+      font-weight: 800;
+      color: var(--text-sec);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .stat-box-value {
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      font-family: var(--font-mono);
+    }
+
+    .stat-box-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+    }
+
+    .stat-box::before {
       content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-      background: radial-gradient(circle, var(--glow-color, transparent) 0%, transparent 70%);
-      opacity: 0.03; pointer-events: none; transition: opacity 0.3s;
-    }
-    .stat-card:hover {
-      transform: translateY(-2px);
-      border-color: var(--glow-border, rgba(255,255,255,0.08));
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35), 0 0 15px var(--glow-shadow, transparent);
-    }
-    .stat-card:hover::after { opacity: 0.08; }
-    
-    .stat-title { font-size: 12px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 1px; }
-    .stat-val { font-size: 40px; font-weight: 700; letter-spacing: -1.5px; font-family: var(--font-mono); }
-    
-    .card-total { --glow-color: var(--cyan); --glow-border: rgba(6, 182, 212, 0.25); --glow-shadow: rgba(6, 182, 212, 0.05); }
-    .card-alive { --glow-color: var(--success); --glow-border: rgba(16, 185, 129, 0.25); --glow-shadow: rgba(16, 185, 129, 0.05); }
-    .card-dead { --glow-color: var(--danger); --glow-border: rgba(239, 68, 68, 0.25); --glow-shadow: rgba(239, 68, 68, 0.05); }
-    .card-unknown { --glow-color: var(--warn); --glow-border: rgba(245, 158, 11, 0.25); --glow-shadow: rgba(245, 158, 11, 0.05); }
-    .card-agents { --glow-color: var(--accent); --glow-border: rgba(99, 102, 241, 0.25); --glow-shadow: rgba(99, 102, 241, 0.05); }
-
-    .val-total { color: var(--cyan); text-shadow: 0 0 15px rgba(6, 182, 212, 0.15); }
-    .val-alive { color: var(--success); text-shadow: 0 0 15px rgba(16, 185, 129, 0.15); }
-    .val-dead { color: var(--danger); text-shadow: 0 0 15px rgba(239, 68, 68, 0.15); }
-    .val-unknown { color: var(--warn); text-shadow: 0 0 15px rgba(245, 158, 11, 0.15); }
-    .val-agents { color: var(--accent); text-shadow: 0 0 15px rgba(99, 102, 241, 0.15); }
-
-    /* Tables */
-    .table-card { padding: 26px; overflow-x: auto; }
-    .card-header { font-size: 16px; font-weight: 600; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; letter-spacing: -0.3px; color: var(--text-main); }
-    
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 15px 18px; text-align: left; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.03); }
-    th { color: var(--text-sec); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; background: rgba(255, 255, 255, 0.01); }
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr { transition: background 0.2s; }
-    tbody tr:hover { background: rgba(255,255,255,0.02); }
-    .empty-row { text-align: center; color: var(--text-sec); padding: 48px 0 !important; font-size: 14px; }
-
-    /* Badges */
-    .badge { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
-    .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
-    .badge.online { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
-    .badge.online::before { background: var(--success); box-shadow: 0 0 8px var(--success); }
-    .badge.offline { background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
-    .badge.offline::before { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
-    .badge.stalled { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }
-    .badge.stalled::before { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
-    
-    .mono { font-family: var(--font-mono); font-size: 13px; }
-    .sub-text { font-size: 12px; color: var(--text-sec); margin-top: 5px; }
-    .main-text { font-weight: 600; color: var(--text-main); }
-    
-    .country-tag {
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); padding: 4px 10px; border-radius: 8px;
-      font-weight: 600; font-size: 12px; color: var(--text-main); white-space: nowrap;
+      background: radial-gradient(circle, var(--theme-color) 0%, transparent 70%);
+      opacity: 0.02; pointer-events: none;
     }
 
-    .action-group { display: flex; gap: 8px; flex-wrap: nowrap; white-space: nowrap; }
-    .btn-xs {
-      padding: 6px 12px; font-size: 11.5px; border-radius: 8px; background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06); color: var(--text-main); font-weight: 600; cursor: pointer;
-      transition: all 0.2s; white-space: nowrap;
+    .stat-box:hover {
+      transform: translateY(-2.5px);
+      border-color: var(--theme-color-glow);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), 0 0 15px var(--theme-color-glow-soft);
     }
-    .btn-xs:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.15); transform: translateY(-1px); }
-    .btn-xs.del { color: #fca5a5; border-color: rgba(239, 68, 68, 0.15); background: rgba(239, 68, 68, 0.05); }
-    .btn-xs.del:hover { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); }
 
-    /* Mac Terminal */
-    .terminal {
-      background: #0d0f17; border-radius: 18px; overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.04);
-      box-shadow: 0 15px 45px rgba(0,0,0,0.5);
+    .box-total { --theme-color: var(--cyan); --theme-color-glow: rgba(6, 182, 212, 0.3); --theme-color-glow-soft: rgba(6, 182, 212, 0.08); }
+    .box-total .stat-box-value { color: var(--cyan); }
+    .box-total .stat-box-icon { background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.2); }
+    .box-total .stat-box-icon svg { stroke: var(--cyan); }
+
+    .box-alive { --theme-color: var(--success); --theme-color-glow: rgba(16, 185, 129, 0.3); --theme-color-glow-soft: rgba(16, 185, 129, 0.08); }
+    .box-alive .stat-box-value { color: var(--success); }
+    .box-alive .stat-box-icon { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); }
+    .box-alive .stat-box-icon svg { stroke: var(--success); }
+
+    .box-dead { --theme-color: var(--danger); --theme-color-glow: rgba(239, 68, 68, 0.3); --theme-color-glow-soft: rgba(239, 68, 68, 0.08); }
+    .box-dead .stat-box-value { color: var(--danger); }
+    .box-dead .stat-box-icon { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); }
+    .box-dead .stat-box-icon svg { stroke: var(--danger); }
+
+    .box-unknown { --theme-color: var(--warn); --theme-color-glow: rgba(245, 158, 11, 0.3); --theme-color-glow-soft: rgba(245, 158, 11, 0.08); }
+    .box-unknown .stat-box-value { color: var(--warn); }
+    .box-unknown .stat-box-icon { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); }
+    .box-unknown .stat-box-icon svg { stroke: var(--warn); }
+
+    /* Dashboard Layout: Main Content Split */
+    .dashboard-split {
+      display: grid;
+      grid-template-columns: 1.2fr 2fr;
+      gap: 28px;
     }
-    .term-header {
-      background: #151926; padding: 14px 20px; display: flex; align-items: center; gap: 8px;
+    @media (max-width: 1050px) { .dashboard-split { grid-template-columns: 1fr; } }
+
+    /* Section Cards */
+    .section-card {
+      padding: 30px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Distribution Progress Row */
+    .dist-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .dist-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13.5px;
+    }
+
+    .dist-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dist-bar-bg {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 4px;
+      width: 100%;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.02);
+    }
+
+    .dist-bar-fill {
+      height: 100%;
+      background: var(--accent-gradient);
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Modern Table styling */
+    .custom-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .custom-table th {
+      padding: 14px 16px;
+      color: var(--text-sec);
+      font-weight: 700;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .custom-table td {
+      padding: 16px;
+      font-size: 14px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.03);
     }
-    .mac-dot { width: 12px; height: 12px; border-radius: 50%; }
-    .mac-dot.r { background: #ff5f56; }
-    .mac-dot.y { background: #ffbd2e; }
-    .mac-dot.g { background: #27c93f; }
-    .term-title { margin-left: auto; margin-right: auto; color: var(--text-sec); font-size: 12px; font-family: var(--font-mono); }
-    
-    .term-body {
-      padding: 20px; height: 380px; overflow-y: auto; font-family: var(--font-mono); font-size: 13px;
-      line-height: 1.6; color: #cbd5e1; text-align: left;
-    }
-    .log-line { margin-bottom: 3px; word-break: break-all; }
-    .log-time { color: #56b6c2; margin-right: 10px; }
-    .log-mod { color: #c678dd; margin-right: 10px; }
-    .c-green { color: #98c379; }
-    .c-red { color: #e06c75; }
-    .c-yellow { color: #d19a66; }
-    .c-blue { color: #61afef; }
 
-    /* Modal / Overlay styling */
+    .custom-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    /* Agent Card Grid Layout */
+    .agents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    /* Agent Premium Card */
+    .agent-card {
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      position: relative;
+    }
+
+    .agent-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .agent-card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .agent-card-id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-sec);
+      margin-top: 4px;
+    }
+
+    .agent-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.02);
+    }
+
+    .agent-info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .agent-info-label {
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-sec);
+      font-weight: 700;
+    }
+
+    .agent-info-value {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .agent-info-value.mono {
+      font-family: var(--font-mono);
+    }
+
+    .agent-card-footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      padding-top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .agent-card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .agent-card-actions button {
+      flex: 1;
+      min-width: calc(50% - 4px);
+    }
+
+    /* Terminal Console */
+    .terminal-container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 180px);
+      background: #08090d;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      overflow: hidden;
+      box-shadow: var(--glass-shadow);
+    }
+
+    .terminal-header {
+      background: #0f121d;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 8px;
+    }
+
+    .terminal-body {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.7;
+      color: #cbd5e1;
+    }
+
+    /* Embedded Settings panel */
+    .settings-panel {
+      max-width: 600px;
+      padding: 36px;
+    }
+
+    .form-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 28px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      padding-bottom: 12px;
+    }
+
+    .input-box {
+      position: relative;
+      margin-bottom: 24px;
+    }
+
+    .input-box label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-sec);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+
+    .input-field {
+      width: 100%;
+      height: 48px;
+      padding: 0 16px;
+      font-size: 14.5px;
+      color: var(--text-main);
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      transition: all 0.25s;
+      font-family: var(--font-mono);
+    }
+
+    .input-field:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    /* Overlays (Confirm / Prompt) */
     .overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(4, 5, 8, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -219,28 +620,55 @@
       z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .overlay.show { opacity: 1; pointer-events: auto; }
+    
     .modal {
       background: rgba(18, 22, 38, 0.85); backdrop-filter: blur(35px); -webkit-backdrop-filter: blur(35px);
       border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 24px; padding: 36px;
-      width: 90%; max-width: 460px; box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+      width: 90%; max-width: 440px; box-shadow: 0 30px 60px rgba(0,0,0,0.6);
       transform: scale(0.95) translateY(12px); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .overlay.show .modal { transform: scale(1) translateY(0); }
     
-    .modal h3 { font-size: 20px; font-weight: 700; margin-bottom: 24px; letter-spacing: -0.5px; color: var(--text-main); }
+    .modal h3 { font-size: 19px; font-weight: 700; margin-bottom: 20px; color: var(--text-main); }
+    .modal p { color: var(--text-sec); font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
     
-    .form-item { margin-bottom: 24px; }
-    .form-item label { display: block; font-size: 12px; font-weight: 700; color: var(--text-sec); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .form-item input {
-      width: 100%; height: 46px; padding: 0 16px; font-size: 14px; font-family: inherit;
-      background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px;
-      color: var(--text-main); transition: all 0.25s;
-    }
-    .form-item input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25); background: rgba(0, 0, 0, 0.4); }
-    
-    .modal-actions { display: flex; justify-content: flex-end; gap: 14px; margin-top: 36px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 14px; }
+    .modal-actions button { flex: 1; }
 
-    /* Toast */
+    /* Badge details inside Gateway Cards */
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-status::before {
+      content: ''; width: 7px; height: 7px; border-radius: 50%;
+    }
+
+    .badge-status.st-online { color: #34d399; }
+    .badge-status.st-online::before { background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulseGreen 2s infinite; }
+    .badge-status.st-stalled { color: #fbbf24; }
+    .badge-status.st-stalled::before { background: var(--warn); box-shadow: 0 0 8px var(--warn); animation: pulseYellow 2s infinite; }
+    .badge-status.st-offline { color: #f87171; }
+    .badge-status.st-offline::before { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    @keyframes pulseYellow {
+      0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+
+    /* Toast styling */
     .toast {
       position: fixed; right: 28px; bottom: 28px; padding: 16px 24px;
       background: rgba(18, 22, 38, 0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
@@ -252,131 +680,266 @@
     .toast.show { transform: translateY(0) scale(1); opacity: 1; }
     .toast.ok { border-left: 5px solid var(--success); color: #def7ec; }
     .toast.err { border-left: 5px solid var(--danger); color: #fde8e8; }
+
+    /* Responsive Mobile */
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      .sidebar {
+        width: 100%;
+        height: auto;
+        position: static;
+        padding: 20px 24px;
+        border-right: none;
+        border-bottom: 1px solid var(--glass-border);
+      }
+      .brand-section { margin-bottom: 0; }
+      .nav-list { display: none; } /* On mobile, we can toggle or keep simple */
+      .main-area {
+        margin-left: 0;
+        width: 100%;
+        padding: 24px;
+      }
+    }
   </style>
 </head>
 <body>
 
-  <div class="navbar glass">
-    <div class="brand">
+  <!-- Left Sidebar Navigation -->
+  <div class="sidebar">
+    <div class="brand-section">
       <img src="/logo.png?v=2" alt="NodePool Logo">
-      <div>
-        NodePool Master
-        <div class="brand-refresh" id="lastRefresh">正在拉取系统状态...</div>
+      <div class="brand-info">
+        <h2>NodePool</h2>
+        <p>Master Console</p>
       </div>
     </div>
-    <div class="nav-actions">
-      <button class="btn btn-ghost" onclick="refresh()">刷新数据</button>
-      <button class="btn btn-ghost" onclick="openSettings()">系统偏好设置</button>
-      <button class="btn btn-danger" onclick="logout()">注销</button>
+
+    <ul class="nav-list">
+      <li class="nav-item active" id="nav-dashboard">
+        <button onclick="switchView('dashboard')">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
+          </svg>
+          控制台概览
+        </button>
+      </li>
+      <li class="nav-item" id="nav-gateways">
+        <button onclick="switchView('gateways')">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          网关被控端
+        </button>
+      </li>
+      <li class="nav-item" id="nav-logs">
+        <button onclick="switchView('logs')">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          日志中心
+        </button>
+      </li>
+      <li class="nav-item" id="nav-settings">
+        <button onclick="switchView('settings')">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          偏好设置
+        </button>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div class="system-status-indicator">
+        <div class="status-dot"></div>
+        <span id="lastRefresh">正在连接...</span>
+      </div>
+      <button class="btn-logout" onclick="logout()">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+        安全注销
+      </button>
     </div>
   </div>
 
-  <div class="container">
-    <div class="overview-grid">
-      <div class="stat-card glass card-total">
-        <div class="stat-title">节点总数</div>
-        <div class="stat-val val-total" id="stat-total">--</div>
+  <!-- Main Content Area -->
+  <div class="main-area">
+    
+    <!-- Top Header -->
+    <div class="page-header">
+      <div class="page-title">
+        <h1 id="view-title">Dashboard 仪表盘</h1>
+        <p id="view-subtitle">主控系统监控与节点池状态</p>
       </div>
-      <div class="stat-card glass card-alive">
-        <div class="stat-title">存活节点</div>
-        <div class="stat-val val-alive" id="stat-alive">--</div>
-      </div>
-      <div class="stat-card glass card-dead">
-        <div class="stat-title">死亡节点</div>
-        <div class="stat-val val-dead" id="stat-dead">--</div>
-      </div>
-      <div class="stat-card glass card-unknown">
-        <div class="stat-title">未知状态</div>
-        <div class="stat-val val-unknown" id="stat-unknown">--</div>
-      </div>
-      <div class="stat-card glass card-agents">
-        <div class="stat-title">在线网关</div>
-        <div class="stat-val val-agents" id="stat-agents">--</div>
+      <div class="header-actions">
+        <button class="btn btn-ghost" onclick="refresh()">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M9.554 11.33a1.554 1.554 0 01-1.554 1.554h0a1.554 1.554 0 01-1.554-1.554v0a1.554 1.554 0 011.554-1.554h0a1.554 1.554 0 011.554 1.554z" />
+          </svg>
+          手动刷新
+        </button>
       </div>
     </div>
 
-    <div class="two-col">
-      <div class="table-card glass">
-        <div class="card-header">全球分布</div>
-        <table>
-          <thead>
-            <tr>
-              <th>国家/地区</th>
-              <th>池内总计</th>
-              <th>当前可用</th>
-            </tr>
-          </thead>
-          <tbody id="country-tbody">
-            <tr><td colspan="3" class="empty-row">加载中...</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="table-card glass">
-        <div class="card-header">网关被控端列表</div>
-        <table>
-          <thead>
-            <tr>
-              <th>网关信息</th>
-              <th>运行状态</th>
-              <th>上次心跳</th>
-              <th>通信 IP</th>
-              <th>本地节点数</th>
-              <th>管理操作</th>
-            </tr>
-          </thead>
-          <tbody id="agents-tbody">
-            <tr><td colspan="6" class="empty-row">加载中...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="table-card glass" style="padding: 0; background: transparent; box-shadow: none; border: none;">
-      <div class="card-header" style="padding: 0 10px;">
-        主控系统日志 (System Logs)
-      </div>
-      <div class="terminal">
-        <div class="term-header">
-          <div class="mac-dot r"></div>
-          <div class="mac-dot y"></div>
-          <div class="mac-dot g"></div>
-          <div class="term-title">master — tail -f nodepool.log</div>
+    <!-- VIEW: DASHBOARD -->
+    <div class="view-pane active" id="pane-dashboard">
+      <!-- 5 Stat Cards Grid -->
+      <div class="stats-layout">
+        <div class="stat-box glass box-total">
+          <div class="stat-box-info">
+            <span class="stat-box-label">节点总数</span>
+            <span class="stat-box-value" id="stat-total">--</span>
+          </div>
+          <div class="stat-box-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:24px;height:24px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
         </div>
-        <div class="term-body" id="log-console">
-          Loading system logs...
+        <div class="stat-box glass box-alive">
+          <div class="stat-box-info">
+            <span class="stat-box-label">可用存活</span>
+            <span class="stat-box-value" id="stat-alive">--</span>
+          </div>
+          <div class="stat-box-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:24px;height:24px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+        <div class="stat-box glass box-dead">
+          <div class="stat-box-info">
+            <span class="stat-box-label">失效死亡</span>
+            <span class="stat-box-value" id="stat-dead">--</span>
+          </div>
+          <div class="stat-box-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:24px;height:24px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+        <div class="stat-box glass box-unknown">
+          <div class="stat-box-info">
+            <span class="stat-box-label">未知状态</span>
+            <span class="stat-box-value" id="stat-unknown">--</span>
+          </div>
+          <div class="stat-box-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:24px;height:24px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+        <div class="stat-box glass box-total" style="--theme-color: var(--accent); --theme-color-glow: rgba(99, 102, 241, 0.3); --theme-color-glow-soft: rgba(99, 102, 241, 0.08);">
+          <div class="stat-box-info">
+            <span class="stat-box-label">网关被控</span>
+            <span class="stat-box-value" id="stat-agents" style="color:var(--accent);">--</span>
+          </div>
+          <div class="stat-box-icon" style="background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.2);">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:24px;height:24px; stroke:var(--accent);">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Columns Splitting -->
+      <div class="dashboard-split">
+        <div class="section-card glass">
+          <div class="section-title">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2h2a2.5 2.5 0 002.5-2.5V14M9 21h6a2 2 0 002-2v-1.5a2.5 2.5 0 00-2.5-2.5h-3a2.5 2.5 0 00-2.5 2.5V21" />
+            </svg>
+            全球分布国家/地区
+          </div>
+          <div id="distribution-list">
+            <div style="color:var(--text-sec); text-align:center; padding: 20px;">数据加载中...</div>
+          </div>
+        </div>
+
+        <div class="section-card glass" style="overflow-x: auto;">
+          <div class="section-title">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
+            </svg>
+            快速节点数据分布统计 (TOP 10)
+          </div>
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>国家地区</th>
+                <th>池内节点</th>
+                <th>可用测活</th>
+              </tr>
+            </thead>
+            <tbody id="country-tbody">
+              <tr><td colspan="3" class="empty-row">正在加载分布图表...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Settings Modal -->
-  <div class="overlay" id="settings-overlay">
-    <div class="modal">
-      <h3>系统偏好设置</h3>
-      <div class="form-item">
-        <label>管理口令 (Web Admin Token)</label>
-        <input type="text" id="input-admin-token" placeholder="设置新的后台登录密码">
-      </div>
-      <div class="form-item">
-        <label>注册口令 (Agent Enroll Token)</label>
-        <input type="text" id="input-enroll-token" placeholder="设置新的被控端接入密钥">
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" onclick="closeSettings()">取消</button>
-        <button class="btn btn-primary" onclick="saveSettings()">存储更改</button>
+    <!-- VIEW: GATEWAYS (GRID VIEW) -->
+    <div class="view-pane" id="pane-gateways">
+      <div class="agents-grid" id="agents-grid">
+        <!-- Rendered by Javascript -->
       </div>
     </div>
+
+    <!-- VIEW: LOGS -->
+    <div class="view-pane" id="pane-logs">
+      <div class="terminal-container">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <div class="mac-dot r"></div>
+            <div class="mac-dot y"></div>
+            <div class="mac-dot g"></div>
+          </div>
+          <div class="term-title">system logs tail</div>
+          <div style="width: 50px;"></div>
+        </div>
+        <div class="terminal-body" id="log-console">
+          正在加载主控后台实时日志...
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: SETTINGS -->
+    <div class="view-pane" id="pane-settings">
+      <div class="settings-panel glass">
+        <div class="form-title">
+          系统口令及安全偏好设置
+        </div>
+        <div class="form-item">
+          <div class="input-box">
+            <label for="input-admin-token">Web 控制台登录密码 (Admin Token)</label>
+            <input type="text" class="input-field" id="input-admin-token" placeholder="设置新的主控登录后台密码">
+          </div>
+        </div>
+        <div class="form-item">
+          <div class="input-box">
+            <label for="input-enroll-token">被控网关注册接入密钥 (Agent Enroll Token)</label>
+            <input type="text" class="input-field" id="input-enroll-token" placeholder="设置新的被控端网关接入验证口令">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveSettings()" style="width: 100%; height: 48px;">
+          保存偏好更改并自动生效
+        </button>
+      </div>
+    </div>
+
   </div>
 
-  <!-- Confirm Modal -->
+  <!-- Confirm Modal (Popup overlay remains for critical alerts) -->
   <div class="overlay" id="confirm-overlay">
-    <div class="modal" style="max-width: 420px; text-align: center;">
-      <h3>提示</h3>
-      <p id="confirm-text" style="color: var(--text-sec); font-size: 14px; white-space: pre-wrap; line-height: 1.6; margin: 0 0 24px 0;"></p>
-      <div class="modal-actions" style="justify-content: center; gap: 16px; margin-top: 24px;">
-        <button class="btn btn-ghost" id="confirm-cancel" style="flex: 1;">取消</button>
-        <button class="btn btn-primary" id="confirm-ok" style="flex: 1;">确定</button>
+    <div class="modal">
+      <h3 style="font-size:17px;">操作确认</h3>
+      <p id="confirm-text"></p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="confirm-cancel">取消</button>
+        <button class="btn btn-primary" id="confirm-ok" style="background:var(--danger-gradient)">确定</button>
       </div>
     </div>
   </div>
@@ -385,9 +948,9 @@
   <div class="overlay" id="prompt-overlay">
     <div class="modal">
       <h3 id="prompt-title">输入信息</h3>
-      <div class="form-item" style="margin-bottom: 12px;">
-        <p id="prompt-text" style="color: var(--text-sec); font-size: 14px; white-space: pre-wrap; line-height: 1.6; margin-bottom: 16px;"></p>
-        <input type="text" id="prompt-input" autocomplete="off" placeholder="点击输入...">
+      <div class="form-item">
+        <p id="prompt-text" style="font-size:13.5px; color:var(--text-sec); margin-bottom:12px;"></p>
+        <input type="text" id="prompt-input" autocomplete="off" class="input-field" placeholder="请在此输入...">
       </div>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="prompt-cancel">取消</button>
@@ -400,6 +963,44 @@
 
   <script>
     let timer = null;
+
+    // View switcher for SPA
+    function switchView(viewId) {
+      document.querySelectorAll('.view-pane').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      
+      document.getElementById(`pane-${viewId}`).classList.add('active');
+      document.getElementById(`nav-${viewId}`).classList.add('active');
+      
+      const titleEl = document.getElementById('view-title');
+      const subEl = document.getElementById('view-subtitle');
+      
+      if (viewId === 'dashboard') {
+        titleEl.textContent = 'Dashboard 仪表盘';
+        subEl.textContent = '主控核心数据监控与节点池状态';
+      } else if (viewId === 'gateways') {
+        titleEl.textContent = '被控网关节点';
+        subEl.textContent = '管理当前接入的各区域网关被控端，状态以及命令下发';
+      } else if (viewId === 'logs') {
+        titleEl.textContent = '主控系统日志';
+        subEl.textContent = '查看主控进程的后台实时运行日志';
+      } else if (viewId === 'settings') {
+        titleEl.textContent = '系统偏好设置';
+        subEl.textContent = '配置主控面板与被控端节点池的通信授权密钥';
+        // Auto-fetch settings
+        fetchSettingsToInputs();
+      }
+    }
+
+    async function fetchSettingsToInputs() {
+      try {
+        const res = await fetchJSON("/admin/api/settings");
+        if (res.ok) {
+          document.getElementById("input-admin-token").value = res.settings.admin_token || "";
+          document.getElementById("input-enroll-token").value = res.settings.enroll_token || "";
+        }
+      } catch(e) {}
+    }
 
     function customConfirm(text) {
       return new Promise(resolve => {
@@ -451,21 +1052,21 @@
     }
 
     function fmtAge(ts) {
-      if (!ts) return "—";
+      if (!ts) return "从未心跳";
       const d = Math.max(0, Math.floor(Date.now()/1000 - ts));
-      if (d < 60) return d + "s 前";
-      if (d < 3600) return Math.floor(d/60) + "m 前";
-      if (d < 86400) return Math.floor(d/3600) + "h 前";
-      return Math.floor(d/86400) + "d 前";
+      if (d < 60) return d + "秒前";
+      if (d < 3600) return Math.floor(d/60) + "分钟前";
+      if (d < 86400) return Math.floor(d/3600) + "小时前";
+      return Math.floor(d/86400) + "天前";
     }
 
     function classifyAgent(a) {
-      if (!a.enabled) return { cls: "offline", txt: "已停用" };
-      if (!a.last_seen) return { cls: "offline", txt: "未上线" };
+      if (!a.enabled) return { cls: "st-offline", txt: "停用" };
+      if (!a.last_seen) return { cls: "st-offline", txt: "离线" };
       const age = Math.floor(Date.now()/1000 - a.last_seen);
-      if (age < 180) return { cls: "online", txt: "正常在线" };
-      if (age < 600) return { cls: "stalled", txt: "心跳延迟" };
-      return { cls: "offline", txt: "离线脱机" };
+      if (age < 180) return { cls: "st-online", txt: "正常" };
+      if (age < 600) return { cls: "st-stalled", txt: "心跳延迟" };
+      return { cls: "st-offline", txt: "离线" };
     }
 
     function toast(msg, type) {
@@ -494,15 +1095,41 @@
       document.getElementById("stat-unknown").textContent = s.nodes.unknown;
       document.getElementById("stat-agents").textContent  = s.agents;
 
+      // Render Country List (Left side of split)
+      const distListEl = document.getElementById("distribution-list");
+      if (!s.by_country || s.by_country.length === 0) {
+        distListEl.innerHTML = "<div style='color:var(--text-sec); text-align:center; padding: 20px;'>暂无节点地理分布数据</div>";
+      } else {
+        // Calculate percentages
+        const total = s.nodes.total || 1;
+        distListEl.innerHTML = s.by_country.map(r => {
+          const pct = Math.min(100, Math.round((r.total / total) * 100));
+          return `
+            <div class="dist-row">
+              <div class="dist-meta">
+                <span class="dist-label">
+                  <span class="country-tag">${r.country_code || '??'}</span>
+                </span>
+                <span style="font-weight:600;"><span style="color:var(--success)">${r.alive || 0}</span> / ${r.total} 个</span>
+              </div>
+              <div class="dist-bar-bg">
+                <div class="dist-bar-fill" style="width: ${pct}%;"></div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      // Render Country Table (Right side of split)
       const tbody = document.getElementById("country-tbody");
       if (!s.by_country || s.by_country.length === 0) {
         tbody.innerHTML = "<tr><td colspan='3' class='empty-row'>暂无数据记录</td></tr>";
       } else {
-        tbody.innerHTML = s.by_country.map(r => `
+        tbody.innerHTML = s.by_country.slice(0, 10).map(r => `
           <tr>
             <td><span class="country-tag">${r.country_code || '??'}</span></td>
             <td class="mono">${r.total}</td>
-            <td class="mono val-alive" style="font-weight:600;">${r.alive || 0}</td>
+            <td class="mono val-alive" style="font-weight:700;">${r.alive || 0}</td>
           </tr>
         `).join("");
       }
@@ -511,40 +1138,64 @@
     async function loadAgents() {
       const data = await fetchJSON("/admin/api/agents");
       if (!data.ok) return;
-      const tbody = document.getElementById("agents-tbody");
+      
+      const grid = document.getElementById("agents-grid");
       if (!data.agents || data.agents.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='6' class='empty-row'>网络中尚未有网关注册</td></tr>";
+        grid.innerHTML = `<div class="glass" style="grid-column: 1/-1; padding: 48px; text-align: center; color: var(--text-sec);">网络中尚未有任何被控网关接入注册。</div>`;
         return;
       }
-      tbody.innerHTML = data.agents.map(a => {
+      
+      grid.innerHTML = data.agents.map(a => {
         const c = classifyAgent(a);
         const st = a.stats || {};
-        const localStats = st.local_node_count !== undefined
-          ? `<span class="mono">${st.alive_count || 0} / ${st.local_node_count || 0}</span>`
-          : "<span style='color:var(--text-sec)'>—</span>";
+        const aliveRatio = st.local_node_count !== undefined
+          ? `${st.alive_count || 0} / ${st.local_node_count || 0}`
+          : "—";
+        const pct = st.local_node_count ? Math.round(((st.alive_count || 0) / st.local_node_count) * 100) : 0;
+        
         const toggleAction = a.enabled
-          ? `<button class="btn-xs" onclick="agentAction('disable','${a.agent_id}')">停用</button>`
-          : `<button class="btn-xs" style="color:var(--success)" onclick="agentAction('enable','${a.agent_id}')">启用</button>`;
+          ? `<button class="btn-xs btn-ghost" onclick="agentAction('disable','${a.agent_id}')">停用网关</button>`
+          : `<button class="btn-xs btn-ghost" style="color:var(--success); border-color: rgba(16, 185, 129, 0.2);" onclick="agentAction('enable','${a.agent_id}')">启用网关</button>`;
         
         return `
-          <tr>
-            <td>
-              <div class="main-text">${escapeHtml(a.name || '(未命名设备)')}</div>
-              <div class="sub-text mono">${a.agent_id}</div>
-            </td>
-            <td><span class="badge ${c.cls}">${c.txt}</span></td>
-            <td class="mono">${fmtAge(a.last_seen)}</td>
-            <td class="mono">${a.last_ip || '—'}</td>
-            <td>${localStats}</td>
-            <td style="white-space: nowrap; width: 220px;">
-              <div class="action-group">
-                ${toggleAction}
-                <button class="btn-xs del" onclick="agentAction('delete','${a.agent_id}')">移除</button>
-                <button class="btn-xs" style="color:var(--cyan)" title="强制被控端立即执行一轮本地测活并同步到主控" onclick="agentCommand('force_push','${a.agent_id}')">下发上报</button>
-                <button class="btn-xs" style="color:var(--cyan)" title="强制被控端立刻从主控拉取缺失的节点" onclick="agentCommand('force_pull','${a.agent_id}')">下发拉取</button>
+          <div class="agent-card glass">
+            <div class="agent-card-header">
+              <div>
+                <div class="agent-card-title">${escapeHtml(a.name || '未命名网关设备')}</div>
+                <div class="agent-card-id">ID: ${a.agent_id}</div>
               </div>
-            </td>
-          </tr>
+              <span class="badge-status ${c.cls}">${c.txt}</span>
+            </div>
+            
+            <div class="agent-info-grid">
+              <div class="agent-info-item">
+                <span class="agent-info-label">通信 IP</span>
+                <span class="agent-info-value mono">${a.last_ip || '—'}</span>
+              </div>
+              <div class="agent-info-item">
+                <span class="agent-info-label">最后心跳</span>
+                <span class="agent-info-value">${fmtAge(a.last_seen)}</span>
+              </div>
+              <div class="agent-info-item" style="grid-column: 1/-1;">
+                <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+                  <span class="agent-info-label">健康可用节点</span>
+                  <span class="agent-info-value mono" style="font-size:12px;">${aliveRatio} (${pct}%)</span>
+                </div>
+                <div class="dist-bar-bg">
+                  <div class="dist-bar-fill" style="width: ${pct}%; background: var(--success-gradient);"></div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="agent-card-footer">
+              <div class="agent-card-actions">
+                ${toggleAction}
+                <button class="btn-xs del" onclick="agentAction('delete','${a.agent_id}')">移除删除</button>
+                <button class="btn-xs btn-primary" onclick="agentCommand('force_push','${a.agent_id}')">下发同步</button>
+                <button class="btn-xs btn-primary" onclick="agentCommand('force_pull','${a.agent_id}')">指令拉取</button>
+              </div>
+            </div>
+          </div>
         `;
       }).join("");
     }
@@ -566,19 +1217,19 @@
           body: JSON.stringify({ agent_id: agentId })
         });
         if (res.ok) {
-          toast(action === 'delete' ? '已成功移除网关' : '操作已应用', "ok");
+          toast(action === 'delete' ? '已成功移除该网关设备' : '操作已应用生效', "ok");
           loadAgents();
         } else {
-          toast("操作无法完成: " + (res.error || ""), "err");
+          toast("操作失败: " + (res.error || ""), "err");
         }
       } catch (e) {
-        toast("请求失败，网络异常", "err");
+        toast("网路异常，请求失败", "err");
       }
     }
 
     async function agentCommand(cmd, agentId) {
       if (cmd === "force_push") {
-        const ok = await customConfirm(`即将向网关 [${agentId}] 下发指令：\n让该网关立即上传其本地可用的所有节点。\n是否继续？`);
+        const ok = await customConfirm(`即将向网关 [${agentId}] 下发同步指令：\n强制该网关立即执行一轮本地节点测速，并将存活节点上报主控。\n是否继续？`);
         if (!ok) return;
       }
       if (cmd === "force_pull") {
@@ -596,12 +1247,12 @@
           body: JSON.stringify({ agent_id: agentId, command: cmd })
         });
         if (res.ok) {
-          toast('指令已下发（将于下一次心跳时被网关获取并执行）', "ok");
+          toast('下发指令成功（被控端将在下一次心跳轮询时执行）', "ok");
         } else {
-          toast("下发失败: " + (res.error || ""), "err");
+          toast("下发指令失败: " + (res.error || ""), "err");
         }
       } catch (e) {
-        toast("请求失败，网络异常", "err");
+        toast("网络请求异常，操作失败", "err");
       }
     }
 
@@ -641,11 +1292,11 @@
           c.innerHTML = data.logs.map(l => colorizeLog(l)).join("");
           if (wasAtBottom) c.scrollTop = c.scrollHeight;
         } else {
-          c.innerHTML = "<div style='color:#888; text-align:center; padding: 40px;'>No logs available.</div>";
+          c.innerHTML = "<div style='color:#888; text-align:center; padding: 40px;'>暂无日志记录。</div>";
         }
       } catch (e) {
         if (e.message !== "unauthorized") {
-          document.getElementById("log-console").innerHTML = `<div class='c-red'>Fail to fetch logs: ${e.message}</div>`;
+          document.getElementById("log-console").innerHTML = `<div class='c-red'>获取日志失败: ${e.message}</div>`;
         }
       }
     }
@@ -654,29 +1305,10 @@
       try {
         await Promise.all([loadStats(), loadAgents(), loadLogs()]);
         const d = new Date();
-        document.getElementById("lastRefresh").textContent = `最后更新于 ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+        document.getElementById("lastRefresh").textContent = `同步时间: ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
       } catch (e) {
-        if (e.message !== "unauthorized") toast("数据刷新失败: " + e.message, "err");
+        if (e.message !== "unauthorized") toast("自动刷新数据失败: " + e.message, "err");
       }
-    }
-
-    async function openSettings() {
-      try {
-        const res = await fetchJSON("/admin/api/settings");
-        if (res.ok) {
-          document.getElementById("input-admin-token").value = res.settings.admin_token || "";
-          document.getElementById("input-enroll-token").value = res.settings.enroll_token || "";
-          document.getElementById("settings-overlay").classList.add("show");
-        } else {
-          toast("无法读取偏好设置: " + (res.error || ""), "err");
-        }
-      } catch (e) {
-        if (e.message !== "unauthorized") toast("加载出错: " + e.message, "err");
-      }
-    }
-
-    function closeSettings() {
-      document.getElementById("settings-overlay").classList.remove("show");
     }
 
     async function saveSettings() {
@@ -684,7 +1316,7 @@
       const enrollToken = document.getElementById("input-enroll-token").value.trim();
 
       if (adminToken.length < 6 || enrollToken.length < 6) {
-        toast("出于安全考虑，口令不得少于 6 个字符", "err");
+        toast("安全强度低，授权口令长度不能少于 6 个字符", "err");
         return;
       }
 
@@ -694,13 +1326,13 @@
           body: JSON.stringify({ admin_token: adminToken, enroll_token: enrollToken })
         });
         if (res.ok) {
-          toast("偏好设置已成功存储", "ok");
-          closeSettings(); refresh();
+          toast("偏好设置已成功保存并重新部署", "ok");
+          refresh();
         } else {
-          toast("存储失败: " + (res.error || ""), "err");
+          toast("设置保存失败: " + (res.error || ""), "err");
         }
       } catch (e) {
-        if (e.message !== "unauthorized") toast("网络请求出错: " + e.message, "err");
+        if (e.message !== "unauthorized") toast("偏好设置应用请求失败", "err");
       }
     }
 
