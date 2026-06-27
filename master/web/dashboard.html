@@ -457,7 +457,15 @@
 
     async function agentCommand(cmd, agentId) {
       if (cmd === "force_push" && !confirm(`即将向网关 [${agentId}] 下发指令：\n让该网关立即上传其本地可用的所有节点。\n是否继续？`)) return;
-      if (cmd === "force_pull" && !confirm(`即将向网关 [${agentId}] 下发指令：\n让该网关立即向主控请求并拉取缺失的节点。\n是否继续？`)) return;
+      if (cmd === "force_pull") {
+        let ccode = prompt(`即将向网关 [${agentId}] 下发拉取指令。\n\n如果你想强行指定它拉取某个国家（例如 HK, JP, US），请在此输入。\n如果不指定（留空直接确定），则按该被控自身的网络设置进行拉取：`);
+        if (ccode === null) return; // 用户取消
+        ccode = ccode.trim().toUpperCase();
+        if (ccode !== "") {
+          cmd = "force_pull:" + ccode;
+        }
+      }
+      
       try {
         const res = await fetchJSON(`/admin/api/agents/command`, {
           method: "POST", headers: { "Content-Type": "application/json" },

@@ -3922,10 +3922,13 @@ def main() -> None:
 
         def _master_command_handler(cmd: str) -> None:
             print(f"[master_client] 收到主控下发指令: {cmd}", flush=True)
-            if cmd == "force_pull":
+            if cmd.startswith("force_pull"):
                 def pull_task():
-                    state_copy = load_ui_config()
-                    target_country = state_copy.get("force_country", "") or ""
+                    parts = cmd.split(":", 1)
+                    target_country = parts[1].strip() if len(parts) > 1 else ""
+                    if not target_country:
+                        state_copy = load_ui_config()
+                        target_country = state_copy.get("force_country", "") or ""
                     master_fetch_and_test_country(target_country)
                 threading.Thread(target=pull_task, daemon=True).start()
             elif cmd == "force_push":
