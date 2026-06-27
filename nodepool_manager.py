@@ -7,6 +7,7 @@ import json
 import os
 import queue
 import re
+import secrets as _secrets_constant_time
 import shlex
 import signal
 import socket
@@ -77,6 +78,7 @@ class DualStackHTTPServer(ThreadingHTTPServer):
 import nodepool_utils
 import proxy_server
 import xray_manager
+import master_client
 
 def env_int(name: str, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
     raw = os.environ.get(name)
@@ -135,6 +137,10 @@ IP_TYPE_CACHE_FILE = DATA_DIR / "ip_type_cache.json"
 lock = threading.RLock()
 maintenance_lock = threading.Lock()
 active_sessions: dict[str, float] = {}
+# 登录失败限速:per-IP 记录 (失败次数, 最后失败时间)
+login_failures: dict[str, tuple[int, float]] = {}
+LOGIN_MAX_FAILURES = 5
+LOGIN_LOCKOUT_SECONDS = 60.0
 active_openvpn_process: subprocess.Popen[str] | None = None
 active_openvpn_node_id = ""
 is_connecting = True
@@ -262,6 +268,28 @@ def generate_random_username() -> str:
             if has_lower and has_upper and has_digit:
                 return uname
 
+def save_ui_config(config: dict[str, Any]) -> None:
+    """原子写 ui_auth.json,并对包含明文密码/Token 的文件做权限收敛。
+
+    使用与 ``write_json`` 相同的 tmp + replace 策略避免崩溃时损坏文件,
+    同时把权限限制为 ``0o600`` (仅 owner 读写),避免低权限用户读取凭证。
+    """
+    auth_file = DATA_DIR / "ui_auth.json"
+    with lock:
+        DATA_DIR.mkdir(exist_ok=True, parents=True)
+        tmp = auth_file.with_suffix(auth_file.suffix + ".tmp")
+        tmp.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            os.chmod(tmp, 0o600)
+        except OSError:
+            pass
+        tmp.replace(auth_file)
+        try:
+            os.chmod(auth_file, 0o600)
+        except OSError:
+            pass
+
+
 def load_ui_config() -> dict[str, Any]:
     with lock:
         auth_file = DATA_DIR / "ui_auth.json"
@@ -282,7 +310,12 @@ def load_ui_config() -> dict[str, Any]:
             "auto_failover": True,
             "tg_enabled": False,
             "tg_bot_token": "",
-            "tg_chat_id": ""
+            "tg_chat_id": "",
+            # 分布式主控接入(默认关闭,留空时等价于现状)
+            "master_enabled": False,
+            "master_url": "",
+            "master_enroll_token": "",
+            "master_agent_name": "",
         }
         updated = False
         if auth_file.exists():
@@ -290,7 +323,8 @@ def load_ui_config() -> dict[str, Any]:
                 data = json.loads(auth_file.read_text(encoding="utf-8"))
                 for key, val in data.items():
                     config[key] = val
-                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "api_url", "socks5_proxy", "auto_failover", "tg_enabled", "tg_bot_token", "tg_chat_id"]:
+                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "api_url", "socks5_proxy", "auto_failover", "tg_enabled", "tg_bot_token", "tg_chat_id",
+                            "master_enabled", "master_url", "master_enroll_token", "master_agent_name"]:
                     if key not in data:
                         updated = True
             except Exception:
@@ -322,8 +356,7 @@ def load_ui_config() -> dict[str, Any]:
             
         if not auth_file.exists() or updated:
             try:
-                DATA_DIR.mkdir(exist_ok=True, parents=True)
-                auth_file.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+                save_ui_config(config)
             except Exception:
                 pass
                 
@@ -391,15 +424,45 @@ def log_to_json(level: str, module: str, message: str) -> None:
         print(f"[Log Error] Failed to write JSON log: {e}", flush=True)
 
 def set_state(**updates: Any) -> None:
-    state = get_state()
-    state.update(updates)
-    write_json(STATE_FILE, state)
+    # 把 get/update/write 包在同一个锁内,避免并发线程之间的 lost-update
+    with lock:
+        state = get_state()
+        state.update(updates)
+        write_json(STATE_FILE, state)
 
 def read_nodes() -> list[dict[str, Any]]:
     raw = read_json(NODES_FILE, [])
     if not isinstance(raw, list):
         return []
     return [item for item in raw if isinstance(item, dict)]
+
+
+def update_nodes_atomic(
+    node_id: str | None = None,
+    updates: dict[str, Any] | None = None,
+    set_active: bool | None = None,
+) -> list[dict[str, Any]]:
+    """原子地更新 NODES_FILE,避免长时间 read-modify-write 期间被并发覆盖。
+
+    - 始终在锁内重新 ``read_nodes``,合并本次改动后再写回,保留其它线程已落盘的更新。
+    - ``node_id`` + ``updates``: 对目标节点合并更新字段(如 ``probe_status``)。
+    - ``set_active=True``: 把 ``node_id`` 置为唯一 active 节点。
+    - ``set_active=False``: 清空所有节点的 active 标记。
+    """
+    with lock:
+        nodes = read_nodes()
+        if node_id and updates:
+            target = next((n for n in nodes if n.get("id") == node_id), None)
+            if target is not None:
+                target.update(updates)
+        if set_active is True and node_id:
+            for item in nodes:
+                item["active"] = item.get("id") == node_id
+        elif set_active is False:
+            for item in nodes:
+                item["active"] = False
+        write_json(NODES_FILE, nodes)
+        return nodes
 
 def prune_old_nodes() -> None:
     """
@@ -531,6 +594,10 @@ def get_state() -> dict[str, Any]:
     state["tg_enabled"] = ui_cfg.get("tg_enabled", False)
     state["tg_bot_token"] = ui_cfg.get("tg_bot_token", "")
     state["tg_chat_id"] = ui_cfg.get("tg_chat_id", "")
+    # 分布式主控配置(用于 UI 回填)
+    state["master_enabled"] = ui_cfg.get("master_enabled", False)
+    state["master_url"] = ui_cfg.get("master_url", "")
+    state["master_agent_name"] = ui_cfg.get("master_agent_name", "")
     
     return state
 
@@ -1279,6 +1346,14 @@ def stop_process(process: subprocess.Popen[str] | None) -> None:
         process.kill()
 
 def kill_existing_openvpn_processes() -> None:
+    """清理本项目残留的活动 OpenVPN 进程。
+
+    精确匹配策略:必须同时满足
+      1. 命令行包含本项目目录标识 (own_markers 之一)
+      2. 命令行包含 ``--dev tun0`` (活动连接专用网卡名)
+      3. 命令行不包含 ``.test_`` (排除测试 worker 临时配置)
+    这样可以避免误杀正在测速的 OpenVPN worker 进程。
+    """
     if not sys.platform.startswith("linux"):
         return
     try:
@@ -1311,14 +1386,26 @@ def kill_existing_openvpn_processes() -> None:
             executable = Path(args[0]).name.lower()
             if "openvpn" not in executable and "openvpn" not in cmdline.lower():
                 continue
-            if any(marker and marker in cmdline for marker in own_markers):
-                try:
-                    os.kill(pid, signal.SIGTERM)
-                    killed_pids.append(pid)
-                except ProcessLookupError:
-                    pass
-                except PermissionError:
-                    print(f"[Cleanup] No permission to terminate OpenVPN PID {pid}", flush=True)
+            # 必须是本项目启动的活动连接进程,排除测试 worker
+            if not any(marker and marker in cmdline for marker in own_markers):
+                continue
+            # 通过 argv 精确判断 dev 参数,避免误匹配子串
+            dev_value = None
+            for i, arg in enumerate(args):
+                if arg == "--dev" and i + 1 < len(args):
+                    dev_value = args[i + 1]
+                    break
+            if dev_value != "tun0":
+                continue
+            if ".test_" in cmdline:
+                continue
+            try:
+                os.kill(pid, signal.SIGTERM)
+                killed_pids.append(pid)
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                print(f"[Cleanup] No permission to terminate OpenVPN PID {pid}", flush=True)
         if killed_pids:
             time.sleep(0.5)
             for pid in killed_pids:
@@ -1331,7 +1418,7 @@ def kill_existing_openvpn_processes() -> None:
                     pass
                 except (OSError, PermissionError):
                     pass
-            print(f"[Cleanup] Terminated Aimili OpenVPN processes: {killed_pids}", flush=True)
+            print(f"[Cleanup] Terminated active OpenVPN processes: {killed_pids}", flush=True)
     except Exception as e:
         print(f"[Cleanup Error] Failed to kill existing OpenVPN processes: {e}", flush=True)
 
@@ -1366,9 +1453,9 @@ def run_openvpn_until_ready(config_file: str, keep_alive: bool, route_nopull: bo
             cwd=str(ROOT_DIR),
         )
     except FileNotFoundError:
-        return False, "[错误代码 2001] [ERR_OVPN_CMD_NOT_FOUND] 未找到 openvpn 命令。原因: 系统未安装 openvpn，或 PATH 环境变量不正确。", None
+        return False, "[错误代码 2001] [ERR_OVPN_CMD_NOT_FOUND] 未找到 openvpn 命令。原因: 系统未安装 openvpn，或 PATH 环境变量不正确。", None, 0
     except OSError as exc:
-        return False, f"[错误代码 2002] [ERR_OVPN_START_FAILED] openvpn 启动失败: {exc}。原因: 系统权限不足或配置冲突。", None
+        return False, f"[错误代码 2002] [ERR_OVPN_START_FAILED] openvpn 启动失败: {exc}。原因: 系统权限不足或配置冲突。", None, 0
 
     lines: queue.Queue[str | None] = queue.Queue()
     startup_done = [False]
@@ -1791,11 +1878,178 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
         
     return list(updated_nodes_map.values())
 
-def auto_switch_node(attempt: int = 0) -> None:
+
+# ─── Phase 3:被控按需向主控请求节点 ──────────────────────────────────────────
+
+# 节流:同一时刻只允许一个 master_fetch 在跑;且任意调用之间至少 ``min_interval`` 秒
+_master_fetch_lock = threading.Lock()
+_master_fetch_inflight = threading.Event()
+_master_fetch_last_at = 0.0
+
+
+def master_fetch_and_test_country(country_zh: str, min_interval: float = 60.0) -> int:
+    """从主控按"中文国家名"拉取该地区的活节点,合并本地池并测速。
+
+    - 仅当 master_client 启用、country 可解析为 ISO 时执行;否则返回 0。
+    - 节流:同一时刻最多一个 fetch;两次调用之间至少 ``min_interval`` 秒。
+    - 返回测速 OK(probe_status='available')的新增节点数。
+
+    在 Phase 3 中由 ``maintain_valid_nodes`` 末尾和 ``auto_switch_node`` 后台补齐
+    触发,提供"本地拉不到 / 全部失效时从主控池补给"的能力。
+    """
+    global _master_fetch_last_at
+
+    mc = master_client.get_global_client()
+    if mc is None or not mc.is_enabled():
+        return 0
+    if not country_zh:
+        return 0
+
+    # 节流
+    with _master_fetch_lock:
+        if _master_fetch_inflight.is_set():
+            print("[master_fetch] 另一个拉取任务正在运行,跳过", flush=True)
+            return 0
+        now = time.time()
+        if now - _master_fetch_last_at < min_interval:
+            print(
+                f"[master_fetch] 距上次拉取仅 {int(now - _master_fetch_last_at)}s,"
+                f"未达节流间隔 {int(min_interval)}s,跳过",
+                flush=True,
+            )
+            return 0
+        _master_fetch_inflight.set()
+        _master_fetch_last_at = now
+
+    try:
+        nodes_local = read_nodes()
+        country_code = nodepool_utils.resolve_country_code(country_zh, nodes_local)
+        if not country_code:
+            print(f"[master_fetch] 无法识别国家 {country_zh!r} 的 ISO 码,跳过", flush=True)
+            return 0
+
+        # 本地已有 fingerprint,作为 exclude 让主控不再返回这些
+        existing_fps: list[str] = []
+        for n in nodes_local:
+            try:
+                fp = master_client.node_fingerprint(n)
+                if fp:
+                    existing_fps.append(fp)
+            except Exception:
+                pass
+
+        print(
+            f"[master_fetch] 向主控请求 {country_zh} ({country_code}) 的活节点 "
+            f"(本地已有 {len(existing_fps)} 个用于去重)...",
+            flush=True,
+        )
+        remote_nodes = mc.query_nodes(
+            country_code, limit=200, exclude_fingerprints=existing_fps[:500]
+        )
+        if not remote_nodes:
+            print(f"[master_fetch] 主控池无 {country_zh} ({country_code}) 的活节点", flush=True)
+            return 0
+
+        # 转换主控返回 → 本地 node 字段
+        new_nodes: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+        for rn in remote_nodes:
+            config_text = str(rn.get("config_text") or "")
+            host = str(rn.get("host") or rn.get("ip") or "")
+            port = parse_int(rn.get("port"))
+            proto = str(rn.get("proto") or "udp")
+            if not host or port <= 0 or not config_text:
+                continue
+            country_short = (str(rn.get("country_code") or country_code or "")).upper()
+            node_id = safe_name("_".join([country_short or "XX", host, str(port), proto]))
+            if node_id in seen_ids:
+                continue
+            seen_ids.add(node_id)
+            config_path = CONFIG_DIR / f"{node_id}.ovpn"
+            try:
+                CONFIG_DIR.mkdir(exist_ok=True, parents=True)
+                config_path.write_text(config_text, encoding="utf-8")
+            except Exception:
+                pass
+            new_nodes.append(
+                {
+                    "id": node_id,
+                    "country": country_zh or str(rn.get("country") or ""),
+                    "country_short": country_short,
+                    "host_name": "",
+                    "ip": str(rn.get("ip") or host),
+                    "score": parse_int(rn.get("score")),
+                    "ping": parse_int(rn.get("handshake_ms")),
+                    "speed": 0,
+                    "sessions": 0,
+                    "uptime": 0,
+                    "owner": "",
+                    "asn": "",
+                    "as_name": "",
+                    "location": "",
+                    "ip_type": "",
+                    "quality": "",
+                    "latency_ms": 0,
+                    "config_file": str(config_path),
+                    "config_text": config_text,
+                    "proto": proto,
+                    "remote_host": host,
+                    "remote_port": port,
+                    "fetched_at": time.time(),
+                    "probe_status": "not_checked",
+                    "probe_message": "",
+                    "probed_at": 0,
+                    "source": "master",
+                }
+            )
+
+        if not new_nodes:
+            return 0
+
+        # 合并本地池(以 node_id 为准,因为本地的 id 是规范化字符串)
+        with lock:
+            existing = read_nodes()
+            existing_ids = {n.get("id") for n in existing}
+            to_add = [n for n in new_nodes if n.get("id") not in existing_ids]
+            if not to_add:
+                print("[master_fetch] 主控返回节点已全部在本地池中", flush=True)
+                return 0
+            merged = existing + to_add
+            write_json(NODES_FILE, sort_all_nodes(merged))
+
+        new_ids = [n["id"] for n in to_add]
+        print(
+            f"[master_fetch] 已新增 {len(new_ids)} 个候选节点,开始本地测速...",
+            flush=True,
+        )
+        try:
+            test_multiple_nodes(new_ids)
+        except Exception as e:
+            print(f"[master_fetch] 本地测速失败: {e}", flush=True)
+
+        final = read_nodes()
+        ok_count = sum(
+            1
+            for n in final
+            if n.get("id") in set(new_ids) and n.get("probe_status") == "available"
+        )
+        print(
+            f"[master_fetch] {country_zh} 主控补给完成:测速通过 {ok_count}/{len(new_ids)}",
+            flush=True,
+        )
+        return ok_count
+    finally:
+        _master_fetch_inflight.clear()
+
+
+def auto_switch_node(attempt: int = 0, excluded_ids: set[str] | None = None) -> None:
     if attempt >= 3:
         print("[自动切换] 连续切换失败已达 3 次，停止切换以防止主线程死锁，将在后台重新加载节点...", flush=True)
         return
-        
+
+    if excluded_ids is None:
+        excluded_ids = set()
+
     ui_cfg = load_ui_config()
     connection_enabled = ui_cfg.get("connection_enabled", True)
     if not connection_enabled:
@@ -1816,6 +2070,7 @@ def auto_switch_node(attempt: int = 0) -> None:
             n for n in nodes 
             if n.get("probe_status") == "available" 
             and not n.get("active")
+            and n.get("id") not in excluded_ids
         ]
         
         is_fallback_untested = False
@@ -1824,6 +2079,7 @@ def auto_switch_node(attempt: int = 0) -> None:
                 n for n in nodes 
                 if n.get("probe_status") == "not_checked" 
                 and not n.get("active")
+                and n.get("id") not in excluded_ids
             ]
             is_fallback_untested = True
             
@@ -1856,7 +2112,9 @@ def auto_switch_node(attempt: int = 0) -> None:
             err_msg = f"切换到备用节点 {next_node['id']} 失败: {e}，将尝试下一个..."
             print(f"[自动切换] {err_msg}", flush=True)
             log_to_json("WARNING", "Node", err_msg)
-            auto_switch_node(attempt + 1)
+            # 把失败节点加入本次切换链的排除集合,避免下一轮再次选中同一个节点
+            excluded_ids.add(next_node["id"])
+            auto_switch_node(attempt + 1, excluded_ids=excluded_ids)
     else:
         msg = "没有可用的备选节点，将自动断开并清理当前连接状态，同时在后台异步获取新节点..."
         if routing_mode == "fixed_region" and target_country:
@@ -1864,11 +2122,7 @@ def auto_switch_node(attempt: int = 0) -> None:
         print(f"[自动切换] {msg}", flush=True)
         log_to_json("WARNING", "Node", msg)
         stop_active_openvpn()
-        with lock:
-            nodes = read_nodes()
-            for item in nodes:
-                item["active"] = False
-            write_json(NODES_FILE, nodes)
+        update_nodes_atomic(set_active=False)
         set_state(active_openvpn_node_id="", last_check_message=msg)
         
         send_telegram_notification(
@@ -1879,6 +2133,35 @@ def auto_switch_node(attempt: int = 0) -> None:
         )
         
         def bg_fetch_and_switch():
+            # 先快速尝试从主控拉该地区节点(秒级);失败再走原 45 分钟 VPN Gate 兜底
+            try:
+                mc = master_client.get_global_client()
+                if (
+                    mc is not None
+                    and mc.is_enabled()
+                    and routing_mode == "fixed_region"
+                    and target_country
+                ):
+                    print(
+                        f"[自动切换后台补齐] 尝试从主控快速拉取 {target_country} 的活节点...",
+                        flush=True,
+                    )
+                    added = master_fetch_and_test_country(target_country)
+                    if added > 0:
+                        print(
+                            f"[自动切换后台补齐] 主控补给 {added} 个,尝试再次切换",
+                            flush=True,
+                        )
+                        log_to_json(
+                            "INFO",
+                            "Master",
+                            f"主控快速补给 {target_country}:新增可用 {added} 个,触发再次切换",
+                        )
+                        auto_switch_node()
+                        return
+            except Exception as e:
+                print(f"[自动切换后台补齐] 主控快速拉取失败,降级到 VPN Gate: {e}", flush=True)
+
             print("[自动切换后台补齐] 45 分钟后将尝试重新获取节点并重连...", flush=True)
             time.sleep(2700)
             try:
@@ -1914,10 +2197,7 @@ def connect_node(node_id: str, reason: str = "手动连接") -> str:
         ui_cfg["connection_enabled"] = True
         if ui_cfg.get("routing_mode") == "fixed_ip":
             ui_cfg["fixed_node_id"] = node_id
-        auth_file = DATA_DIR / "ui_auth.json"
-        with lock:
-            DATA_DIR.mkdir(exist_ok=True, parents=True)
-            auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+        save_ui_config(ui_cfg)
         
         set_state(active_node_latency="清理连接", last_check_message="正在关闭与清理旧的 节点连接及网卡...")
         stop_active_openvpn()
@@ -1939,16 +2219,28 @@ def connect_node(node_id: str, reason: str = "手动连接") -> str:
                     config_path.unlink()
             except Exception:
                 pass
-            node["probe_status"] = "unavailable"
-            node["probe_message"] = message
-            for item in nodes:
-                item["active"] = False
-            write_json(NODES_FILE, nodes)
+            update_nodes_atomic(
+                node_id=node_id,
+                updates={"probe_status": "unavailable", "probe_message": message},
+                set_active=False,
+            )
             log_to_json("ERROR", "Node", f"连接节点 {node_id} 失败: {message}")
             print(f"[连接核心失败] 无法与 节点 {node_id} 建立隧道连接！详情: {message}", flush=True)
             set_state(active_openvpn_node_id="", is_connecting=False, active_node_latency="无活动连接", last_check_message=f"连接失败: {message}")
             with lock:
                 active_openvpn_node_id = ""
+            # 反馈主控:这个节点本机无法建立隧道(异步,失败 swallow)
+            try:
+                mc = master_client.get_global_client()
+                if mc is not None and mc.is_enabled():
+                    threading.Thread(
+                        target=mc.feedback,
+                        args=(node, f"connect_failed: {message[:160]}"),
+                        daemon=True,
+                        name="MasterFeedback",
+                    ).start()
+            except Exception:
+                pass
             raise RuntimeError(message)
             
         with lock:
@@ -1978,12 +2270,12 @@ def connect_node(node_id: str, reason: str = "手动连接") -> str:
         except Exception:
             pass
             
-        for item in nodes:
-            item["active"] = item.get("id") == node_id
-            if item["active"]:
-                _ph = f"[{LOCAL_PROXY_HOST}]" if ":" in LOCAL_PROXY_HOST else LOCAL_PROXY_HOST
-                item["probe_message"] = f"Active node. HTTP proxy: http://{_ph}:{LOCAL_PROXY_PORT}"
-        write_json(NODES_FILE, nodes)
+        _ph = f"[{LOCAL_PROXY_HOST}]" if ":" in LOCAL_PROXY_HOST else LOCAL_PROXY_HOST
+        update_nodes_atomic(
+            node_id=node_id,
+            updates={"probe_message": f"Active node. HTTP proxy: http://{_ph}:{LOCAL_PROXY_PORT}"},
+            set_active=True,
+        )
         
         set_state(last_check_message="正在测试本地代理出站联通性与出口 IP...")
         res = check_proxy_health()
@@ -2235,6 +2527,55 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
             active_openvpn_node_id=active_openvpn_node_id,
             valid_nodes=valid_nodes_count,
         )
+
+        # 分布式主控:把本轮测速 OK 的节点批量上报给主控(失败 swallow)
+        try:
+            mc = master_client.get_global_client()
+            if mc is not None and mc.is_enabled():
+                available_nodes = [n for n in merged if n.get("probe_status") == "available"]
+                if available_nodes:
+                    threading.Thread(
+                        target=mc.upload_nodes,
+                        args=(available_nodes,),
+                        daemon=True,
+                        name="MasterUpload",
+                    ).start()
+        except Exception as up_exc:
+            print(f"[维护线程] 上传节点到主控失败(忽略): {up_exc}", flush=True)
+
+        # 分布式主控:固定地区模式下若本轮没拉到该地区的活节点,向主控请求
+        try:
+            ui_cfg2 = load_ui_config()
+            if ui_cfg2.get("routing_mode") == "fixed_region":
+                target = ui_cfg2.get("force_country") or ""
+                if target:
+                    local_alive = sum(
+                        1
+                        for n in merged
+                        if n.get("probe_status") == "available"
+                        and (
+                            n.get("country") == target
+                            or nodepool_utils.COUNTRY_TRANSLATIONS.get(
+                                n.get("country", ""), n.get("country", "")
+                            )
+                            == target
+                        )
+                    )
+                    if local_alive == 0:
+                        print(
+                            f"[维护线程] 本地无 {target} 的可用节点,尝试从主控拉取...",
+                            flush=True,
+                        )
+                        added = master_fetch_and_test_country(target)
+                        if added > 0:
+                            log_to_json(
+                                "INFO",
+                                "Master",
+                                f"主控补给 {target}:新增可用 {added} 个",
+                            )
+        except Exception as mf_exc:
+            print(f"[维护线程] 主控按需拉取失败(忽略): {mf_exc}", flush=True)
+
         return message
     except Exception as e:
         raise e
@@ -2549,6 +2890,18 @@ def background_proxy_checker() -> None:
                                     mark_blacklisted(active_node, f"代理连通性检测失败: {error_msg}")
                                     active_node["probe_status"] = "unavailable"
                                     write_json(NODES_FILE, nodes)
+                            # 反馈主控:活动节点的出口连通性失败(异步)
+                            try:
+                                mc = master_client.get_global_client()
+                                if mc is not None and mc.is_enabled() and active_node:
+                                    threading.Thread(
+                                        target=mc.feedback,
+                                        args=(active_node, f"proxy_health_failed: {error_msg[:160]}"),
+                                        daemon=True,
+                                        name="MasterFeedback",
+                                    ).start()
+                            except Exception:
+                                pass
                             auto_switch_node()
                     else:
                         print(f"[代理守护线程] 固定 IP 模式下代理不可用，正在尝试重启连接同一节点: {active_openvpn_node_id}", flush=True)
@@ -2886,6 +3239,21 @@ class Handler(BaseHTTPRequestHandler):
             host_header = self.headers.get("Host", "")
             server_ip = host_header.split(":")[0] if host_header else "127.0.0.1"
             self.send_json(xray_manager.get_share_link(inbound_id, server_ip))
+        elif effective_path == "/api/master_status":
+            # 暴露分布式主控客户端的连接状态,供 Web UI 显示
+            try:
+                ui_cfg = load_ui_config()
+                mc = master_client.get_global_client()
+                status = mc.status() if mc is not None else {
+                    "enabled": False, "master_url": "", "agent_id": "",
+                    "agent_name": "", "last_heartbeat_at": 0,
+                    "last_upload_at": 0, "last_register_at": 0,
+                }
+                # 不要把 enroll_token / agent_token 发到前端
+                status["master_enroll_token_set"] = bool(ui_cfg.get("master_enroll_token"))
+                self.send_json({"ok": True, "status": status})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         else:
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
@@ -2898,12 +3266,45 @@ class Handler(BaseHTTPRequestHandler):
                 payload = self.read_json_body()
                 input_pwd = str(payload.get("password") or "")
                 input_uname = str(payload.get("username") or "")
-                
+
+                # 取客户端 IP 用于失败限速
+                client_ip = ""
+                try:
+                    client_ip = self.client_address[0] if self.client_address else ""
+                except Exception:
+                    client_ip = ""
+
+                # 检查该 IP 是否处于失败锁定期内
+                now_ts = time.time()
+                with lock:
+                    fail_count, last_fail_ts = login_failures.get(client_ip, (0, 0.0))
+                    if fail_count >= LOGIN_MAX_FAILURES and (now_ts - last_fail_ts) < LOGIN_LOCKOUT_SECONDS:
+                        remain = int(LOGIN_LOCKOUT_SECONDS - (now_ts - last_fail_ts))
+                        self.send_json(
+                            {"ok": False, "error": f"登录失败次数过多，请在 {remain} 秒后重试"},
+                            HTTPStatus.TOO_MANY_REQUESTS,
+                        )
+                        return
+                    # 超过冷却期则重置计数
+                    if fail_count >= LOGIN_MAX_FAILURES and (now_ts - last_fail_ts) >= LOGIN_LOCKOUT_SECONDS:
+                        login_failures.pop(client_ip, None)
+
                 ui_cfg = load_ui_config()
                 expected_pwd = ui_cfg.get("password", "")
                 expected_uname = ui_cfg.get("username", "admin")
-                
-                if expected_pwd and input_pwd == expected_pwd and input_uname == expected_uname:
+
+                # 常量时间比较,避免通过响应时间逐字节探测密码
+                pwd_ok = bool(expected_pwd) and _secrets_constant_time.compare_digest(
+                    input_pwd.encode("utf-8"), expected_pwd.encode("utf-8")
+                )
+                uname_ok = _secrets_constant_time.compare_digest(
+                    input_uname.encode("utf-8"), expected_uname.encode("utf-8")
+                )
+
+                if pwd_ok and uname_ok:
+                    # 登录成功:清除该 IP 的失败计数
+                    with lock:
+                        login_failures.pop(client_ip, None)
                     token = uuid.uuid4().hex
                     with lock:
                         active_sessions[token] = time.time() + 30 * 24 * 3600
@@ -2919,6 +3320,10 @@ class Handler(BaseHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(body)
                 else:
+                    # 登录失败:递增计数
+                    with lock:
+                        fc, _ = login_failures.get(client_ip, (0, 0.0))
+                        login_failures[client_ip] = (fc + 1, now_ts)
                     self.send_json({"ok": False, "error": "用户名或密码不正确，请重新输入"}, HTTPStatus.FORBIDDEN)
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -2999,11 +3404,9 @@ class Handler(BaseHTTPRequestHandler):
                 ui_cfg["tg_bot_token"] = tg_bot_token
                 ui_cfg["tg_chat_id"] = tg_chat_id
                 
-                auth_file = DATA_DIR / "ui_auth.json"
                 reauth_required = new_username != expected_username or (new_password and new_password != expected_password)
                 with lock:
-                    DATA_DIR.mkdir(exist_ok=True, parents=True)
-                    auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                    save_ui_config(ui_cfg)
                     if reauth_required:
                         active_sessions.clear()
                         save_sessions(active_sessions)
@@ -3038,6 +3441,11 @@ class Handler(BaseHTTPRequestHandler):
                 tg_enabled = bool(payload.get("tg_enabled", False))
                 tg_bot_token = str(payload.get("tg_bot_token") or "").strip()
                 tg_chat_id = str(payload.get("tg_chat_id") or "").strip()
+                # 分布式主控配置(可选,默认关闭)
+                master_enabled_in = bool(payload.get("master_enabled", False))
+                master_url_in = str(payload.get("master_url") or "").strip().rstrip("/")
+                master_enroll_token_in = str(payload.get("master_enroll_token") or "").strip()
+                master_agent_name_in = str(payload.get("master_agent_name") or "").strip()
                 
                 try:
                     new_proxy_port_int = int(new_proxy_port)
@@ -3065,6 +3473,18 @@ class Handler(BaseHTTPRequestHandler):
                     if not (new_socks5_proxy.startswith("socks5://") or new_socks5_proxy.startswith("socks5h://")):
                         self.send_json({"ok": False, "error": "SOCKS5 代理网址必须以 socks5:// 或 socks5h:// 开头"}, HTTPStatus.BAD_REQUEST)
                         return
+
+                # 主控配置校验
+                if master_enabled_in and not master_url_in:
+                    self.send_json({"ok": False, "error": "启用分布式主控时必须填写主控地址"}, HTTPStatus.BAD_REQUEST)
+                    return
+                if master_url_in:
+                    if not (master_url_in.startswith("http://") or master_url_in.startswith("https://")):
+                        self.send_json({"ok": False, "error": "主控地址必须以 http:// 或 https:// 开头"}, HTTPStatus.BAD_REQUEST)
+                        return
+                if len(master_agent_name_in) > 64:
+                    self.send_json({"ok": False, "error": "被控显示名长度不能超过 64"}, HTTPStatus.BAD_REQUEST)
+                    return
                 
                 ui_cfg = load_ui_config()
                 expected_proxy_port = ui_cfg.get("proxy_port", 7928)
@@ -3083,13 +3503,41 @@ class Handler(BaseHTTPRequestHandler):
                 ui_cfg["tg_enabled"] = tg_enabled
                 ui_cfg["tg_bot_token"] = tg_bot_token
                 ui_cfg["tg_chat_id"] = tg_chat_id
-
+                # 分布式主控配置(若用户改了 master_url,清空旧凭据以触发重新注册)
+                old_master_url = ui_cfg.get("master_url", "")
+                ui_cfg["master_enabled"] = master_enabled_in
+                ui_cfg["master_url"] = master_url_in
+                if master_enroll_token_in:
+                    ui_cfg["master_enroll_token"] = master_enroll_token_in
+                if master_agent_name_in:
+                    ui_cfg["master_agent_name"] = master_agent_name_in
                 
-                auth_file = DATA_DIR / "ui_auth.json"
                 with lock:
-                    DATA_DIR.mkdir(exist_ok=True, parents=True)
-                    auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                    save_ui_config(ui_cfg)
                     prune_old_nodes()
+
+                # 热更新主控客户端配置;url 变更时清除旧凭据以便用新 enroll_token 重新注册
+                try:
+                    mc = master_client.get_global_client()
+                    if mc is not None:
+                        if old_master_url and old_master_url != master_url_in:
+                            try:
+                                agent_file = DATA_DIR / master_client.MasterClient.AGENT_FILE_NAME
+                                if agent_file.exists():
+                                    agent_file.unlink()
+                            except OSError:
+                                pass
+                            mc.agent_id = ""
+                            mc.agent_token = ""
+                        mc.configure(ui_cfg)
+                        if mc.is_enabled():
+                            threading.Thread(
+                                target=mc.register_if_needed,
+                                daemon=True,
+                                name="MasterRegister",
+                            ).start()
+                except Exception as e:
+                    print(f"[update_settings] 主控客户端热更新失败: {e}", flush=True)
                 
                 restart_needed = (new_proxy_port_int != expected_proxy_port)
                 if restart_needed:
@@ -3173,10 +3621,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 ui_cfg = load_ui_config()
                 ui_cfg["connection_enabled"] = False
-                auth_file = DATA_DIR / "ui_auth.json"
                 with lock:
-                    DATA_DIR.mkdir(exist_ok=True, parents=True)
-                    auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                    save_ui_config(ui_cfg)
                 
                 old_active_node_id = active_openvpn_node_id
                 stop_active_openvpn()
@@ -3423,6 +3869,33 @@ def main() -> None:
     threading.Thread(target=collector_loop, daemon=True).start()
     threading.Thread(target=background_proxy_checker, daemon=True).start()
     threading.Thread(target=active_node_pinger, daemon=True).start()
+
+    # 分布式主控客户端(可选)。仅当 ui_auth.json 中 master_enabled=True 时启用,
+    # 关闭/未配置时该模块对本机行为零影响。
+    try:
+        _master_client = master_client.MasterClient(DATA_DIR)
+        _master_client.configure(load_ui_config())
+        master_client.set_global_client(_master_client)
+
+        def _master_stats_provider() -> dict:
+            try:
+                nodes = read_nodes()
+                alive = sum(1 for n in nodes if n.get("probe_status") == "available")
+                active = next((n.get("id") for n in nodes if n.get("active")), "")
+                return {
+                    "local_node_count": len(nodes),
+                    "alive_count": alive,
+                    "active_node_id": active,
+                    "version": "phase2",
+                }
+            except Exception:
+                return {}
+
+        _master_client.start_background(stats_provider=_master_stats_provider)
+        if _master_client.is_enabled():
+            print(f"[master_client] 已启用,目标主控: {_master_client.master_url}", flush=True)
+    except Exception as e:
+        print(f"[master_client] 初始化失败(忽略,本机功能不受影响): {e}", flush=True)
 
     # Auto-start Xray if inbounds are configured
     def _xray_autostart():

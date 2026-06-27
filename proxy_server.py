@@ -340,11 +340,26 @@ def http_client(client: socket.socket, first_byte: bytes) -> None:
                 return
         if method.upper() == "CONNECT":
             host, port = parse_host_port(target, 443)
-            upstream = create_connection((host, port), timeout=20)
-            client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-            if rest:
-                upstream.sendall(rest)
-            relay(client, upstream)
+            try:
+                upstream = create_connection((host, port), timeout=20)
+            except Exception as e:
+                print(f"[CONNECT 代理失败] 目标 {host}:{port} 连接失败: {e}", flush=True)
+                try:
+                    client.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n")
+                except OSError:
+                    pass
+                return
+            try:
+                client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            except OSError:
+                return
+            # 隧道已建立,客户端从此把连接当 TLS 流;后续异常不能再回写 HTTP 错误
+            try:
+                if rest:
+                    upstream.sendall(rest)
+                relay(client, upstream)
+            except Exception as e:
+                print(f"[CONNECT 隧道异常] {host}:{port}: {e}", flush=True)
             return
 
         try:
@@ -401,10 +416,16 @@ def proxy_client(client: socket.socket, address: tuple[str, int]) -> None:
             socks5_client(client, first)
         else:
             http_client(client, first)
+    except ConnectionError:
+        # 客户端正常断开,常见且无需噪声日志
+        pass
     except Exception as e:
         err_msg = str(e)
         if "[错误代码" in err_msg:
             print(f"[代理客户端连接失败] 客户端 {address} 遭遇系统性阻碍: {err_msg}", flush=True)
+        else:
+            print(f"[代理客户端异常] 客户端 {address}: {type(e).__name__}: {err_msg}", flush=True)
+    finally:
         try:
             client.close()
         except OSError:
@@ -477,13 +498,25 @@ def start_proxy_server(host: str, port: int) -> None:
                     pass
                 continue
 
-            def run_client() -> None:
+            def run_client(client=client, address=address) -> None:
                 try:
                     proxy_client(client, address)
                 finally:
                     proxy_connection_sem.release()
 
-            threading.Thread(target=run_client, daemon=True).start()
+            try:
+                threading.Thread(target=run_client, daemon=True).start()
+            except RuntimeError as e:
+                # 系统线程资源不足,需手动释放 socket 与信号量,避免泄漏
+                print(f"[代理线程启动失败] 客户端 {address}: {e}", flush=True)
+                try:
+                    client.close()
+                except OSError:
+                    pass
+                try:
+                    proxy_connection_sem.release()
+                except ValueError:
+                    pass
         except Exception as e:
             print(f"[ERROR] Proxy accept failed: {e}", flush=True)
             time.sleep(0.5)

@@ -86,6 +86,93 @@ COUNTRY_TRANSLATIONS = {
     "Luxembourg": "卢森堡",
 }
 
+
+# 中文国家名 → ISO 3166-1 alpha-2(用于和主控按 country_code 通信)
+# 仅覆盖常见的几十个,够 VPN Gate 实际可见的国家使用;
+# 未在表内的中文名会通过本地节点池反查 country_short 作为兜底。
+COUNTRY_NAME_TO_CODE = {
+    "日本": "JP",
+    "韩国": "KR",
+    "泰国": "TH",
+    "美国": "US",
+    "英国": "GB",
+    "俄罗斯": "RU",
+    "越南": "VN",
+    "中国": "CN",
+    "台湾": "TW",
+    "香港": "HK",
+    "新加坡": "SG",
+    "马来西亚": "MY",
+    "印度尼西亚": "ID",
+    "印度": "IN",
+    "菲律宾": "PH",
+    "澳大利亚": "AU",
+    "新西兰": "NZ",
+    "加拿大": "CA",
+    "乌克兰": "UA",
+    "法国": "FR",
+    "德国": "DE",
+    "荷兰": "NL",
+    "瑞典": "SE",
+    "挪威": "NO",
+    "西班牙": "ES",
+    "土耳其": "TR",
+    "南非": "ZA",
+    "巴西": "BR",
+    "阿根廷": "AR",
+    "智利": "CL",
+    "墨西哥": "MX",
+    "埃及": "EG",
+    "罗马尼亚": "RO",
+    "波兰": "PL",
+    "哈萨克斯坦": "KZ",
+    "格鲁吉亚": "GE",
+    "蒙古": "MN",
+    "沙特阿拉伯": "SA",
+    "伊朗": "IR",
+    "伊拉克": "IQ",
+    "哥伦比亚": "CO",
+    "柬埔寨": "KH",
+    "爱尔兰": "IE",
+    "意大利": "IT",
+    "瑞士": "CH",
+    "比利时": "BE",
+    "奥地利": "AT",
+    "丹麦": "DK",
+    "芬兰": "FI",
+    "葡萄牙": "PT",
+    "希腊": "GR",
+    "捷克": "CZ",
+    "匈牙利": "HU",
+    "以色列": "IL",
+    "阿联酋": "AE",
+    "卢森堡": "LU",
+}
+
+
+def resolve_country_code(country_zh: str, fallback_nodes: list[dict] | None = None) -> str:
+    """把中文国家名转为 ISO 3166-1 alpha-2 国家码。
+
+    优先级:
+      1. 内置 ``COUNTRY_NAME_TO_CODE`` 映射
+      2. 从 ``fallback_nodes`` 中找同名节点的 ``country_short`` 字段
+      3. 找不到返回空串
+    """
+    if not country_zh:
+        return ""
+    cz = country_zh.strip()
+    code = COUNTRY_NAME_TO_CODE.get(cz, "")
+    if code:
+        return code
+    if fallback_nodes:
+        for n in fallback_nodes:
+            if (n.get("country") or "").strip() == cz:
+                cs = (n.get("country_short") or "").strip().upper()
+                if cs:
+                    return cs
+    return ""
+
+
 def _safe_int(val: Any, default: int = 0) -> int:
     try:
         return int(val)
@@ -189,9 +276,15 @@ def is_config_tcp(config_text: str) -> bool:
     return False
 
 def parse_remote(config_text: str, fallback_ip: str = "") -> tuple[str, int, str]:
+    """从 OpenVPN 配置中解析出主 remote。
+
+    OpenVPN 配置允许多行 ``remote`` 作为故障转移列表,这里取**第一条**作为主节点
+    返回,避免被后续备用 remote 行覆盖丢失主节点信息。
+    """
     remote_host = fallback_ip
     remote_port = 0
     proto = "unknown"
+    found_remote = False
     for raw_line in config_text.splitlines():
         line = raw_line.strip()
         if not line or line.startswith(("#", ";")):
@@ -199,11 +292,12 @@ def parse_remote(config_text: str, fallback_ip: str = "") -> tuple[str, int, str
         parts = line.split()
         if parts[0].lower() == "proto" and len(parts) >= 2:
             proto = parts[1].lower()
-        elif parts[0].lower() == "remote" and len(parts) >= 3:
+        elif parts[0].lower() == "remote" and len(parts) >= 3 and not found_remote:
             remote_host = parts[1]
             remote_port = int(parts[2]) if parts[2].isdigit() else 0
             if len(parts) >= 4:
                 proto = parts[3].lower()
+            found_remote = True
     return remote_host, remote_port, proto
 
 def get_physical_interface() -> str | None:
@@ -273,7 +367,8 @@ def ping_latency_ms(host: str, port: int, fallback_ping: int = 0) -> int:
             if res.returncode == 0:
                 match = re.search(r"time=([\d.]+)\s*ms", res.stdout)
                 if match:
-                    val = int(float(match.group(1)))
+                    # 亚毫秒延迟向上取整为 1ms,避免 int(float) 截断为 0 被误判失败
+                    val = max(1, round(float(match.group(1))))
                     if val > 0:
                         return val
         except Exception:
@@ -292,7 +387,7 @@ def ping_latency_ms(host: str, port: int, fallback_ping: int = 0) -> int:
         if res.returncode == 0:
             match = re.search(r"time=([\d.]+)\s*ms", res.stdout)
             if match:
-                val = int(float(match.group(1)))
+                val = max(1, round(float(match.group(1))))
                 if val > 0:
                     return val
     except Exception:
@@ -351,11 +446,31 @@ def check_and_fix_dns() -> None:
     resolv_file = Path("/etc/resolv.conf")
     if resolv_file.exists():
         try:
+            # 如果 /etc/resolv.conf 是 systemd-resolved / NetworkManager 等托管的符号链接,
+            # 追加内容会被托管程序覆盖,反而留下不一致状态;此时只打印诊断信息,不动文件
+            try:
+                resolved_target = resolv_file.resolve()
+                managed_prefixes = ("/run/systemd/resolve/", "/run/NetworkManager/", "/var/run/systemd/resolve/")
+                if str(resolved_target).startswith(managed_prefixes) or resolv_file.is_symlink():
+                    print(
+                        "[dns_heal] /etc/resolv.conf 由 systemd-resolved/NetworkManager 等托管,"
+                        f"实际指向 {resolved_target},跳过自动写入。请在托管程序中配置 DNS。",
+                        flush=True,
+                    )
+                    return
+            except OSError:
+                pass
+
             content = resolv_file.read_text(encoding="utf-8", errors="replace")
             if "nameserver 1.1.1.1" not in content and "nameserver 8.8.8.8" not in content:
                 print("[dns_heal] Resolving names failed, but IP network is OK. Appending public DNS to /etc/resolv.conf...", flush=True)
-                with open("/etc/resolv.conf", "a", encoding="utf-8") as f:
-                    f.write("\nnameserver 1.1.1.1\nnameserver 8.8.8.8\n")
+                # 原子追加:先生成完整内容再写入,避免崩溃时留下半行残片
+                if not content.endswith("\n"):
+                    content += "\n"
+                new_content = content + "nameserver 1.1.1.1\nnameserver 8.8.8.8\n"
+                tmp = resolv_file.with_suffix(resolv_file.suffix + ".tmp")
+                tmp.write_text(new_content, encoding="utf-8")
+                tmp.replace(resolv_file)
         except Exception as e:
             print(f"[dns_heal] Failed to write DNS fallback: {e}", flush=True)
 

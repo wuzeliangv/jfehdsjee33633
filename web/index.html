@@ -1254,6 +1254,44 @@
           </label>
         </div>
 
+        <div style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 16px; margin-bottom: 16px;">
+          <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px;">分布式主控</p>
+          <p style="margin: 0 0 14px 0; font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
+            启用后，本被控端会把自测 OK 的 OpenVPN 节点上报给主控，并在本地缺目标地区节点时向主控请求补给。
+            关闭时本被控完全独立运行，与现状一致。
+          </p>
+
+          <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none; margin-bottom: 14px;">
+            <input type="checkbox" id="net_master_enabled" style="margin-top: 3px; cursor: pointer;" />
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">启用分布式主控</span>
+              <span style="font-size: 12px; color: var(--text-secondary);">勾选后保存设置即生效，无需重启服务。</span>
+            </div>
+          </label>
+
+          <div class="form-group">
+            <label class="form-label" for="net_master_url">主控地址</label>
+            <input type="text" id="net_master_url" class="input-field" placeholder="http://主控公网IP:28080" style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+            <span class="form-hint">主控的 HTTP 地址，必须以 http:// 或 https:// 开头</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="net_master_enroll_token">注册口令 (enroll_token)</label>
+            <input type="password" id="net_master_enroll_token" class="input-field" placeholder="留空则保持原值不变" style="font-family: 'JetBrains Mono', monospace; font-size: 13px;" autocomplete="off">
+            <span class="form-hint">主控 install_master.sh 安装时打印的 enroll_token；首次注册成功后该口令仅用于换发 agent_token，可以安全清空</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="net_master_agent_name">被控显示名</label>
+            <input type="text" id="net_master_agent_name" class="input-field" placeholder="例如：tokyo-vps-1（留空则使用本机 hostname）" maxlength="64">
+            <span class="form-hint">主控管理界面里识别本被控的友好名称，仅用于显示</span>
+          </div>
+
+          <div id="net_master_status_box" style="font-size: 12px; color: var(--text-secondary); line-height: 1.6; padding: 10px 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 6px;">
+            ℹ️ 主控状态：加载中...
+          </div>
+        </div>
+
 
         
         <div style="display: flex; gap: 12px; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 20px;">
@@ -1731,8 +1769,14 @@ function switchView(viewId) {
       $("net_socks5_proxy").value = state.socks5_proxy || "";
       // 填充是否开启故障自动切换
       $("net_auto_failover").checked = (state.auto_failover !== undefined) ? state.auto_failover : true;
+      // 填充分布式主控配置
+      $("net_master_enabled").checked = !!state.master_enabled;
+      $("net_master_url").value = state.master_url || "";
+      $("net_master_enroll_token").value = "";  // 注册口令不回显,留空表示不修改
+      $("net_master_agent_name").value = state.master_agent_name || "";
     }
     populateRoutingCountries();
+    loadMasterStatus();
   } else if (viewId === 'gateway') {
     loadGatewayStatus();
     gatewayPollInterval = setInterval(loadGatewayStatus, 3000);
@@ -2947,7 +2991,11 @@ async function saveNetwork(e) {
         routing_ip_type: routingIpType,
         api_url: $("net_api_url").value.trim() || "",
         socks5_proxy: $("net_socks5_proxy").value.trim() || "",
-        auto_failover: $("net_auto_failover").checked
+        auto_failover: $("net_auto_failover").checked,
+        master_enabled: $("net_master_enabled").checked,
+        master_url: $("net_master_url").value.trim(),
+        master_enroll_token: $("net_master_enroll_token").value,
+        master_agent_name: $("net_master_agent_name").value.trim()
       })
     });
     
@@ -3054,6 +3102,55 @@ setInterval(async () => {
   }
 }, 10000);
 let gatewayPollInterval = null;
+
+async function loadMasterStatus() {
+  const box = $("net_master_status_box");
+  if (!box) return;
+  try {
+    const res = await fetch("./api/master_status");
+    const data = await res.json();
+    if (!data.ok || !data.status) {
+      box.innerHTML = "⚠️ 无法获取主控状态: " + ((data && data.error) || "未知错误");
+      return;
+    }
+    const s = data.status;
+    if (!s.enabled) {
+      box.innerHTML = "⏸️ <b>分布式主控未启用</b> — 本机独立运行,与现状一致";
+      return;
+    }
+    if (!s.master_url) {
+      box.innerHTML = "⚠️ 已勾选启用主控但未配置主控地址";
+      return;
+    }
+    const fmtAge = (ts) => {
+      if (!ts) return "从未";
+      const d = Math.max(0, Math.floor(Date.now()/1000 - ts));
+      if (d < 60) return d + " 秒前";
+      if (d < 3600) return Math.floor(d/60) + " 分钟前";
+      if (d < 86400) return Math.floor(d/3600) + " 小时前";
+      return Math.floor(d/86400) + " 天前";
+    };
+    const registered = !!s.agent_id;
+    const hbAlive = s.last_heartbeat_at && (Date.now()/1000 - s.last_heartbeat_at < 180);
+    const dot = registered && hbAlive ? "🟢" : (registered ? "🟡" : "🔴");
+    const statusLabel = registered ? (hbAlive ? "已连接" : "心跳停滞") : "未注册";
+    let html = "";
+    html += dot + " <b>" + statusLabel + "</b><br>";
+    html += "主控地址：<code style='font-family:JetBrains Mono,monospace;'>" + s.master_url + "</code><br>";
+    if (s.agent_name) {
+      html += "被控显示名：<b>" + s.agent_name + "</b><br>";
+    }
+    if (s.agent_id) {
+      html += "agent_id：<code style='font-family:JetBrains Mono,monospace; font-size: 11px;'>" + s.agent_id + "</code><br>";
+    } else {
+      html += "尚未注册到主控,保存设置后会自动注册<br>";
+    }
+    html += "上次心跳：" + fmtAge(s.last_heartbeat_at) + " &nbsp;&nbsp; 上次上传：" + fmtAge(s.last_upload_at);
+    box.innerHTML = html;
+  } catch (e) {
+    box.innerHTML = "⚠️ 主控状态请求失败: " + (e && e.message || e);
+  }
+}
 
 async function loadGatewayStatus() {
   try {

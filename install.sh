@@ -136,7 +136,8 @@ setup_tun() {
     chmod 600 /dev/net/tun >/dev/null 2>&1 || true
   fi
   if command -v lsmod >/dev/null 2>&1; then
-    if ! lsmod | grep -q '^tun\s' >/dev/null 2>&1; then
+    # POSIX 字符类替代 \s,兼容 BusyBox grep
+    if ! lsmod | grep -qE '^tun[[:space:]]' >/dev/null 2>&1; then
       log_info "尝试加载 tun 内核模块..."
       modprobe tun >/dev/null 2>&1 || true
     fi
@@ -178,27 +179,52 @@ fi
 WEB_PORT=12345
 PROXY_PORT=10010
 AUTH_FILE="${PROJECT_DIR}/nodepool_data/ui_auth.json"
-AUTO_USER="huanggang"
-AUTO_PASS="250564560"
-AUTO_SECRET="oba"
+# 首次安装时使用密码学随机生成的默认凭据,避免暴露在公网的弱口令后台
+gen_random() {
+  local length="${1:-16}"
+  local charset="${2:-A-Za-z0-9}"
+  tr -dc "$charset" </dev/urandom | head -c "$length" || true
+}
+AUTO_USER="user_$(gen_random 8 'a-z0-9')"
+AUTO_PASS="$(gen_random 20 'A-Za-z0-9')"
+AUTO_SECRET="$(gen_random 12 'A-Za-z0-9')"
 
 # Load existing values if config file exists
 if [ -f "${AUTH_FILE}" ] && command -v python3 >/dev/null 2>&1; then
-  read -r EXISTING_USER EXISTING_PASS EXISTING_SECRET EXISTING_PORT EXISTING_PROXY_PORT < <(python3 -c "
-import json
+  # 用换行分隔字段,避免账号/密码含空格时错位污染配置
+  _np_existing="$(NP_AUTH_FILE="${AUTH_FILE}" python3 - <<'PY'
+import json, os, sys
 try:
-    with open('${AUTH_FILE}', 'r', encoding='utf-8') as f:
-        d = json.load(f)
-        print(f\"{d.get('username', '')} {d.get('password', '')} {d.get('secret_path', '')} {d.get('port', 8787)} {d.get('proxy_port', 7928)}\")
+    with open(os.environ['NP_AUTH_FILE'], 'r', encoding='utf-8') as f:
+        d = json.load(f) or {}
+    if not isinstance(d, dict):
+        d = {}
+    fields = [
+        str(d.get('username', '')),
+        str(d.get('password', '')),
+        str(d.get('secret_path', '')),
+        str(d.get('port', 8787)),
+        str(d.get('proxy_port', 7928)),
+    ]
+    # 任意字段含换行视为非法,降级到默认值
+    if any('\n' in v or '\r' in v for v in fields):
+        sys.exit(0)
+    sys.stdout.write('\n'.join(fields))
 except Exception:
     pass
-" 2>/dev/null)
-
-  [ -n "${EXISTING_USER}" ] && AUTO_USER="${EXISTING_USER}"
-  [ -n "${EXISTING_PASS}" ] && AUTO_PASS="${EXISTING_PASS}"
-  [ -n "${EXISTING_SECRET}" ] && AUTO_SECRET="${EXISTING_SECRET}"
-  [ -n "${EXISTING_PORT}" ] && WEB_PORT="${EXISTING_PORT}"
-  [ -n "${EXISTING_PROXY_PORT}" ] && PROXY_PORT="${EXISTING_PROXY_PORT}"
+PY
+)"
+  if [ -n "${_np_existing}" ]; then
+    IFS=$'\n' read -r EXISTING_USER EXISTING_PASS EXISTING_SECRET EXISTING_PORT EXISTING_PROXY_PORT <<EOF
+${_np_existing}
+EOF
+    [ -n "${EXISTING_USER:-}" ] && AUTO_USER="${EXISTING_USER}"
+    [ -n "${EXISTING_PASS:-}" ] && AUTO_PASS="${EXISTING_PASS}"
+    [ -n "${EXISTING_SECRET:-}" ] && AUTO_SECRET="${EXISTING_SECRET}"
+    [ -n "${EXISTING_PORT:-}" ] && WEB_PORT="${EXISTING_PORT}"
+    [ -n "${EXISTING_PROXY_PORT:-}" ] && PROXY_PORT="${EXISTING_PROXY_PORT}"
+  fi
+  unset _np_existing
 fi
 
 USER_NAME="${AUTO_USER}"
@@ -212,10 +238,11 @@ read_input() {
   local input
   echo -ne "${BOLD}${prompt}${NC} [${YELLOW}${default}${NC}]: " >/dev/tty
   read -r input </dev/tty || true
+  # 用 printf -v 写入变量,避免 eval 把用户输入当作 shell 代码执行
   if [ -z "$input" ]; then
-    eval "$var_name=\"$default\""
+    printf -v "$var_name" '%s' "$default"
   else
-    eval "$var_name=\"$input\""
+    printf -v "$var_name" '%s' "$input"
   fi
 }
 
@@ -267,45 +294,64 @@ fi
 
 log_info "正在配置登录信息与端口参数..."
 mkdir -p "$(dirname "${AUTH_FILE}")"
-python3 -c "
-import json, pathlib
-auth_file = pathlib.Path('${AUTH_FILE}')
+# 改用 here-doc + 环境变量传值,避免 ${USER_NAME}/${PASSWORD} 等含 '、\、换行 时被注入到 Python 代码
+NP_USER_NAME="${USER_NAME}" \
+NP_PASSWORD="${PASSWORD}" \
+NP_SECRET_PATH="${SECRET_PATH}" \
+NP_WEB_PORT="${WEB_PORT}" \
+NP_PROXY_PORT="${PROXY_PORT}" \
+NP_AUTH_FILE="${AUTH_FILE}" \
+python3 - <<'PY'
+import json
+import os
+import pathlib
+
+auth_file = pathlib.Path(os.environ["NP_AUTH_FILE"])
 config = {
-    'username': '${USER_NAME}',
-    'secret_path': '${SECRET_PATH}',
-    'password': '${PASSWORD}',
-    'host': '::',
-    'port': ${WEB_PORT},
-    'proxy_port': ${PROXY_PORT},
-    'routing_mode': 'auto',
-    'force_country': '',
-    'routing_ip_type': 'all',
-    'connection_enabled': True,
-    'fixed_node_id': '',
-    'favorite_node_ids': [],
-    'fav_fail_fallback': True,
-    'api_url': 'https://www.vpngate.net/api/iphone/',
-    'socks5_proxy': ''
+    "username": os.environ.get("NP_USER_NAME", ""),
+    "secret_path": os.environ.get("NP_SECRET_PATH", ""),
+    "password": os.environ.get("NP_PASSWORD", ""),
+    "host": "::",
+    "port": int(os.environ.get("NP_WEB_PORT", "8787") or "8787"),
+    "proxy_port": int(os.environ.get("NP_PROXY_PORT", "7928") or "7928"),
+    "routing_mode": "auto",
+    "force_country": "",
+    "routing_ip_type": "all",
+    "connection_enabled": True,
+    "fixed_node_id": "",
+    "favorite_node_ids": [],
+    "fav_fail_fallback": True,
+    "api_url": "https://www.vpngate.net/api/iphone/",
+    "socks5_proxy": "",
 }
+
 if auth_file.exists():
     try:
-        with open(auth_file, 'r', encoding='utf-8') as f:
+        with open(auth_file, "r", encoding="utf-8") as f:
             data = json.load(f)
-            config.update(data)
+            if isinstance(data, dict):
+                config.update(data)
     except Exception:
         pass
 
-# Force update the user configured values
-config['username'] = '${USER_NAME}'
-config['password'] = '${PASSWORD}'
-config['secret_path'] = '${SECRET_PATH}'
-config['port'] = ${WEB_PORT}
-config['proxy_port'] = ${PROXY_PORT}
+# 用户本次配置的字段覆盖文件中的旧值
+config["username"] = os.environ.get("NP_USER_NAME", config["username"])
+config["password"] = os.environ.get("NP_PASSWORD", config["password"])
+config["secret_path"] = os.environ.get("NP_SECRET_PATH", config["secret_path"])
+config["port"] = int(os.environ.get("NP_WEB_PORT", "8787") or "8787")
+config["proxy_port"] = int(os.environ.get("NP_PROXY_PORT", "7928") or "7928")
 
 auth_file.parent.mkdir(parents=True, exist_ok=True)
-with open(auth_file, 'w', encoding='utf-8') as f:
+# 原子写,避免崩溃中途留下损坏 JSON 把管理员锁出后台
+tmp = auth_file.with_suffix(auth_file.suffix + ".tmp")
+with open(tmp, "w", encoding="utf-8") as f:
     json.dump(config, f, ensure_ascii=False, indent=2)
-"
+os.replace(tmp, auth_file)
+try:
+    os.chmod(auth_file, 0o600)
+except OSError:
+    pass
+PY
 
 # Clean up the old service if active
 if systemctl is-active aimili-nodepool.service >/dev/null 2>&1; then
@@ -352,8 +398,24 @@ else
   exit 1
 fi
 
-# Get Public IP
-PUBLIC_IP=$(curl -s --max-time 2 https://api.ipify.org || curl -s --max-time 2 https://ifconfig.me || ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || echo "您的服务器公网IP")
+# Get Public IP (依次尝试外部 API、本地路由,空响应也算失败)
+get_public_ip() {
+  local ip
+  ip="$(curl -fsS --max-time 3 https://api.ipify.org 2>/dev/null || true)"
+  if [ -n "$ip" ] && [[ "$ip" =~ ^[0-9a-fA-F:.]+$ ]]; then
+    echo "$ip"; return 0
+  fi
+  ip="$(curl -fsS --max-time 3 https://ifconfig.me 2>/dev/null || true)"
+  if [ -n "$ip" ] && [[ "$ip" =~ ^[0-9a-fA-F:.]+$ ]]; then
+    echo "$ip"; return 0
+  fi
+  ip="$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || true)"
+  if [ -n "$ip" ]; then
+    echo "$ip"; return 0
+  fi
+  echo "<请填写本机公网IP>"
+}
+PUBLIC_IP="$(get_public_ip)"
 
 echo ""
 echo -e "${GREEN}┌──────────────────────────────────────────────────────────┐${NC}"

@@ -10,6 +10,7 @@ build/
 
 # Runtime data
 nodepool_data/
+master/master_data/
 logs/
 *.log
 *.tmp

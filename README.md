@@ -42,13 +42,39 @@
 
 ## 🚀 快速安装
 
-直接在终端执行官方一键部署脚本：
+### 推荐:一键交互式安装(自动判断角色)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/wuzeliangv/NodePool/main/setup.sh)
+```
+
+运行后会提示选择:
+
+- **1) 被控端 Agent** — 拉取节点 + 本地测速 + 提供 HTTP/SOCKS5 代理出口
+- **2) 主控端 Master** — 聚合所有被控的节点池 + L1/L2 测活 + Web Dashboard(默认端口 28080)
+
+如需非交互(脚本/CI),用参数直接指定角色:
+
+```bash
+sudo ./setup.sh --role=agent    # 被控
+sudo ./setup.sh --role=master   # 主控
+```
+
+### 单角色直接安装
+
+被控端(原 install.sh,等价于 setup.sh + 1):
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/wuzeliangv/NodePool/main/install.sh)
 ```
 
-- **默认安装目录**：`/root/nodepool`
+主控端(进入项目 master/ 目录):
+
+```bash
+sudo ./master/install_master.sh
+```
+
+- **默认安装目录**:`/root/NodePool`
 - **一键服务托管**：安装脚本会自动将程序注册为 systemd 系统守护进程 `nodepool.service`，并配置为开机自启。
 
 ### 从您的 Fork 仓库安装

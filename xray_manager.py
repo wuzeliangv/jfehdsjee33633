@@ -30,12 +30,33 @@ XRAY_INBOUNDS_FILE = XRAY_DATA_DIR / "inbounds.json"
 _lock = threading.RLock()
 _xray_process: subprocess.Popen | None = None
 _xray_start_time: float = 0.0
+_xray_log_buffer: list[str] = []
+_XRAY_LOG_BUFFER_MAX = 400
+
+
+def _xray_log_consumer(proc: subprocess.Popen, buf: list[str]) -> None:
+    """持续读取 xray 子进程的 stdout/stderr,避免 PIPE 缓冲区写满阻塞 xray。"""
+    try:
+        if proc.stdout is None:
+            return
+        for line in proc.stdout:
+            stripped = line.rstrip()
+            buf.append(stripped)
+            if len(buf) > _XRAY_LOG_BUFFER_MAX:
+                # 保留最近 _XRAY_LOG_BUFFER_MAX//2 行,丢弃更旧的
+                del buf[: len(buf) - _XRAY_LOG_BUFFER_MAX // 2]
+    except Exception:
+        pass
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+import secrets as _secrets_module
+
+
 def _random_password(length: int = 16) -> str:
+    """生成密码学安全的随机密码,适用于 Shadowsocks 等需要保密强度的场景。"""
     chars = string.ascii_letters + string.digits
-    return "".join(random.choices(chars, k=length))
+    return "".join(_secrets_module.choice(chars) for _ in range(length))
 
 def _is_port_open(port: int) -> bool:
     """Check if a local port is already in use."""
@@ -59,14 +80,30 @@ def _ensure_dirs() -> None:
 # ── Inbound persistence ───────────────────────────────────────────────────────
 
 def load_inbounds() -> list[dict]:
+    """加载入站配置。文件不存在视为空配置;损坏文件备份后视为空,避免被后续 save 覆盖。"""
     _ensure_dirs()
+    if not XRAY_INBOUNDS_FILE.exists():
+        return []
     try:
         raw = XRAY_INBOUNDS_FILE.read_text(encoding="utf-8")
+    except OSError as e:
+        print(f"[Xray] 读取 inbounds.json 失败: {e}", flush=True)
+        return []
+    try:
         data = json.loads(raw)
-        if isinstance(data, list):
-            return data
-    except Exception:
-        pass
+    except json.JSONDecodeError as e:
+        # 数据损坏:先备份,避免下一次 save_inbounds([]) 覆盖原文件丢失数据
+        backup = XRAY_INBOUNDS_FILE.with_name(
+            XRAY_INBOUNDS_FILE.stem + f".broken.{int(time.time())}.json"
+        )
+        try:
+            XRAY_INBOUNDS_FILE.replace(backup)
+            print(f"[Xray] inbounds.json 损坏 ({e})，已备份到 {backup}", flush=True)
+        except OSError as be:
+            print(f"[Xray] inbounds.json 损坏且备份失败 ({be})", flush=True)
+        return []
+    if isinstance(data, list):
+        return data
     return []
 
 def save_inbounds(inbounds: list[dict]) -> None:
@@ -198,7 +235,7 @@ def is_xray_running() -> bool:
         return _xray_process.poll() is None
 
 def start_xray(socks5_port: int = 7928) -> dict:
-    global _xray_process, _xray_start_time
+    global _xray_process, _xray_start_time, _xray_log_buffer
     with _lock:
         if not XRAY_BIN.exists():
             return {"ok": False, "error": f"Xray binary not found: {XRAY_BIN}"}
@@ -223,10 +260,19 @@ def start_xray(socks5_port: int = 7928) -> dict:
                 start_new_session=True
             )
             _xray_start_time = time.time()
+            # 启动消费线程,持续读取 stdout/stderr 避免 PIPE 写满阻塞 xray
+            _xray_log_buffer = []
+            threading.Thread(
+                target=_xray_log_consumer,
+                args=(_xray_process, _xray_log_buffer),
+                daemon=True,
+            ).start()
             time.sleep(0.8)
             if _xray_process.poll() is not None:
-                out = _xray_process.stdout.read() if _xray_process.stdout else ""
-                return {"ok": False, "error": f"Xray 启动失败: {out[:300]}"}
+                # 启动失败,等消费线程把剩余日志读完
+                time.sleep(0.2)
+                out = "\n".join(_xray_log_buffer[-50:])
+                return {"ok": False, "error": f"Xray 启动失败: {out[:500]}"}
             print(f"[Xray] 已成功启动 (PID={_xray_process.pid})", flush=True)
             return {"ok": True, "pid": _xray_process.pid}
         except Exception as e:
@@ -244,6 +290,11 @@ def stop_xray() -> dict:
                 _xray_process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 _xray_process.kill()
+                # kill 后再 wait,回收子进程,避免僵尸
+                try:
+                    _xray_process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    pass
             print("[Xray] 已停止 Xray-core", flush=True)
             _xray_process = None
             return {"ok": True}
