@@ -515,7 +515,7 @@ def prune_old_nodes() -> None:
     seven_days_ms = seven_days * 1000
 
     for country, country_nodes in nodes_by_country.items():
-        if len(country_nodes) > 30:
+        if len(country_nodes) > 50:
             country_removed = 0
             pruned_country_nodes = []
             for n in country_nodes:
@@ -548,7 +548,7 @@ def prune_old_nodes() -> None:
             
             if country_removed > 0:
                 removed_count_total += country_removed
-                msg = f"[Pruner] 国家【{country}】入库节点数 {len(country_nodes)} > 30，已清理 7 天以上老节点共 {country_removed} 个"
+                msg = f"[Pruner] 国家【{country}】入库节点数 {len(country_nodes)} > 50，已清理 7 天以上老节点共 {country_removed} 个"
                 print(msg, flush=True)
                 log_to_json("INFO", "Main", msg)
             pruned_nodes.extend(pruned_country_nodes)
@@ -2545,7 +2545,7 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                             seen_ids.add(old_n["id"])
                         # 超过 72 小时的待检测节点：静默丢弃，不再保留
 
-            # 过滤本地保存的节点：如果开启了固定地区/国家模式，只保留活跃节点和最多30个目标国家的节点，其余直接丢弃配置并清理
+            # 过滤本地保存的节点：如果开启了固定地区/国家模式，只保留活跃节点和最多50个目标国家的节点，其余直接丢弃配置并清理
             ui_cfg_tmp = load_ui_config()
             routing_mode_tmp = ui_cfg_tmp.get("routing_mode", "auto")
             target_country_tmp = ui_cfg_tmp.get("force_country", "")
@@ -2560,7 +2560,7 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                 
                 # 优先保留已测活成功节点，然后按拉取时间从新到旧排序
                 fixed_nodes.sort(key=lambda x: (1 if x.get("probe_status") == "available" else 0, float(x.get("fetched_at", 0) or 0)), reverse=True)
-                local_nodes = fixed_nodes[:30]
+                local_nodes = fixed_nodes[:50]
                 
                 # 活跃节点必须保留，防止断连
                 if active_node and not any(n["id"] == active_node["id"] for n in local_nodes):
