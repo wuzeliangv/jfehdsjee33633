@@ -115,7 +115,7 @@
     .empty-row { text-align: center; color: var(--text-sec); padding: 40px 0 !important; }
 
     /* Badges */
-    .badge { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+    .badge { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
     .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
     .badge.online { background: rgba(52, 199, 89, 0.12); color: #248a3d; }
     .badge.online::before { background: #34c759; }
@@ -130,14 +130,14 @@
     
     .country-tag {
       background: white; border: 1px solid rgba(0,0,0,0.08); padding: 4px 8px; border-radius: 6px;
-      font-weight: 600; font-size: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+      font-weight: 600; font-size: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); white-space: nowrap;
     }
 
-    .action-group { display: flex; gap: 8px; }
+    .action-group { display: flex; gap: 8px; flex-wrap: nowrap; white-space: nowrap; }
     .btn-xs {
       padding: 6px 12px; font-size: 11px; border-radius: 8px; background: white;
       border: 1px solid rgba(0,0,0,0.08); color: var(--text-main); font-weight: 500; cursor: pointer;
-      transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.02); white-space: nowrap;
     }
     .btn-xs:hover { background: #f8f9fa; border-color: rgba(0,0,0,0.15); box-shadow: 0 2px 6px rgba(0,0,0,0.05); transform: translateY(-1px); }
     .btn-xs.del { color: var(--danger); }
@@ -418,7 +418,7 @@
             <td class="mono">${fmtAge(a.last_seen)}</td>
             <td class="mono">${a.last_ip || '—'}</td>
             <td>${localStats}</td>
-            <td>
+            <td style="white-space: nowrap; width: 140px;">
               <div class="action-group">
                 ${toggleAction}
                 <button class="btn-xs del" onclick="agentAction('delete','${a.agent_id}')">移除</button>
