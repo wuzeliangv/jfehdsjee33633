@@ -511,11 +511,11 @@ def prune_old_nodes() -> None:
     pruned_nodes = []
     removed_count_total = 0
     now = time.time()
-    fifteen_days = 15 * 24 * 3600
-    fifteen_days_ms = fifteen_days * 1000
+    seven_days = 7 * 24 * 3600
+    seven_days_ms = seven_days * 1000
 
     for country, country_nodes in nodes_by_country.items():
-        if len(country_nodes) > 50:
+        if len(country_nodes) > 30:
             country_removed = 0
             pruned_country_nodes = []
             for n in country_nodes:
@@ -532,8 +532,8 @@ def prune_old_nodes() -> None:
                 except (TypeError, ValueError):
                     uptime_val = 0.0
 
-                is_old_fetched = (fetched_at_val > 0 and (now - fetched_at_val > fifteen_days))
-                is_old_uptime = (uptime_val > fifteen_days_ms)
+                is_old_fetched = (fetched_at_val > 0 and (now - fetched_at_val > seven_days))
+                is_old_uptime = (uptime_val > seven_days_ms)
 
                 if (is_old_fetched or is_old_uptime) and not is_active:
                     config_file = n.get("config_file")
@@ -548,7 +548,7 @@ def prune_old_nodes() -> None:
             
             if country_removed > 0:
                 removed_count_total += country_removed
-                msg = f"[Pruner] 国家【{country}】入库节点数 {len(country_nodes)} > 50，已清理 15 天以上老节点共 {country_removed} 个"
+                msg = f"[Pruner] 国家【{country}】入库节点数 {len(country_nodes)} > 30，已清理 7 天以上老节点共 {country_removed} 个"
                 print(msg, flush=True)
                 log_to_json("INFO", "Main", msg)
             pruned_nodes.extend(pruned_country_nodes)
@@ -2461,8 +2461,15 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                         is_connecting = True
 
         auto_test_enabled = os.environ.get("AUTO_TEST_ENABLED", "false").lower() == "true"
-        if not auto_test_enabled and not is_manual:
-            print("[维护线程] 自动测速已禁用，跳过后台自动获取与测试节点。", flush=True)
+        # 即使禁用了本地自动测速，只要启用了主控，依然继续拉取节点并上报主控
+        mc_enabled = False
+        try:
+            _mc = master_client.get_global_client()
+            mc_enabled = _mc is not None and _mc.is_enabled()
+        except Exception:
+            pass
+        if not auto_test_enabled and not is_manual and not mc_enabled:
+            print("[维护线程] 自动测速已禁用且未启用主控，跳过后台自动获取与测试节点。", flush=True)
             set_state(is_connecting=False, last_check_message="自动检测已禁用（当前为手动模式，请点击更新节点）")
             return "自动测速已禁用"
 
@@ -2527,12 +2534,20 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                     
             for old_n in current_nodes:
                 if old_n.get("id") not in seen_ids:
-                    if old_n.get("probe_status") in ("available", "not_checked"):
+                    status = old_n.get("probe_status", "")
+                    # 已测活的节点保留更久；待检测节点如果超过 72 小时没有在 API 中重新出现则清除
+                    if status == "available":
                         merged.append(old_n)
                         seen_ids.add(old_n["id"])
+                    elif status == "not_checked":
+                        fetched_at = float(old_n.get("fetched_at", 0) or 0)
+                        if fetched_at > 0 and (time.time() - fetched_at) < 259200:  # 72小时
+                            merged.append(old_n)
+                            seen_ids.add(old_n["id"])
+                        # 超过 72 小时的待检测节点：静默丢弃，不再保留
                         
-            if len(merged) > 1000:
-                merged = merged[:1000]
+            if len(merged) > 500:
+                merged = merged[:500]
                 
             for n in merged:
                 config_path = Path(n["config_file"])
