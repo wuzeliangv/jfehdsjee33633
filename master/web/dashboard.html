@@ -930,20 +930,9 @@
             </svg>
           </div>
         </div>
-        <div class="stat-box glass box-dead">
-          <div class="stat-box-info">
-            <span class="stat-box-label">失效死亡</span>
-            <span class="stat-box-value" id="stat-dead">--</span>
-          </div>
-          <div class="stat-box-icon">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:24px;height:24px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-        </div>
         <div class="stat-box glass box-unknown">
           <div class="stat-box-info">
-            <span class="stat-box-label">未知状态</span>
+            <span class="stat-box-label">待检测数</span>
             <span class="stat-box-value" id="stat-unknown">--</span>
           </div>
           <div class="stat-box-icon">
@@ -1212,7 +1201,6 @@
       const s = data.stats;
       document.getElementById("stat-total").textContent   = s.nodes.total;
       document.getElementById("stat-alive").textContent   = s.nodes.alive;
-      document.getElementById("stat-dead").textContent    = s.nodes.dead;
       document.getElementById("stat-unknown").textContent = s.nodes.unknown;
       document.getElementById("stat-agents").textContent  = s.agents;
 
