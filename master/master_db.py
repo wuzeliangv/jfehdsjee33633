@@ -395,19 +395,21 @@ class MasterDB:
                          probe_status      = CASE
                              WHEN consecutive_fails + 1 >= 3 THEN 'dead'
                              ELSE COALESCE(probe_status, 'unknown')
-                         END,
-                         score = score - 3
+                          END,
+                          score = score - 3
                        WHERE fingerprint = ?""",
                     (now, fingerprint),
                 )
+                # 死亡节点立即清理
+                self.conn.execute(
+                    "DELETE FROM nodes WHERE fingerprint = ? AND probe_status = 'dead'",
+                    (fingerprint,),
+                )
 
     def delete_dead_nodes(self, dead_for_seconds: int) -> int:
-        cutoff = time.time() - dead_for_seconds
         with self.lock:
             cur = self.conn.execute(
-                "DELETE FROM nodes WHERE probe_status = 'dead' "
-                "AND last_probe_at IS NOT NULL AND last_probe_at < ?",
-                (cutoff,),
+                "DELETE FROM nodes WHERE probe_status = 'dead'"
             )
         return cur.rowcount
 
