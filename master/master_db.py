@@ -449,16 +449,13 @@ class MasterDB:
                     (now, handshake_ms, fingerprint),
                 )
             else:
-                # 连续 3 次失败标 dead
+                # 任何一次失败都立即标记为 dead
                 self.conn.execute(
                     """UPDATE nodes SET
                          consecutive_fails = consecutive_fails + 1,
                          last_probe_at     = ?,
-                         probe_status      = CASE
-                             WHEN consecutive_fails + 1 >= 3 THEN 'dead'
-                             ELSE COALESCE(probe_status, 'unknown')
-                          END,
-                          score = score - 3
+                         probe_status      = 'dead',
+                         score             = score - 5
                        WHERE fingerprint = ?""",
                     (now, fingerprint),
                 )
@@ -469,7 +466,8 @@ class MasterDB:
                 )
 
     def delete_dead_nodes(self, dead_for_seconds: int) -> int:
-        cutoff = time.time() - dead_for_seconds
+        # 未知/未测活状态的节点，如果超过 10 分钟仍未成功，则立即清理
+        cutoff = time.time() - 600
         with self.lock:
             cur = self.conn.execute(
                 """DELETE FROM nodes 
