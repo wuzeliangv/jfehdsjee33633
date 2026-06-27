@@ -161,6 +161,9 @@ def resolve_country_code(country_zh: str, fallback_nodes: list[dict] | None = No
     if not country_zh:
         return ""
     cz = country_zh.strip()
+    if len(cz) == 2 and cz.isalpha() and cz.isupper():
+        return cz
+        
     code = COUNTRY_NAME_TO_CODE.get(cz, "")
     if code:
         return code

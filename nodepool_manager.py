@@ -3929,7 +3929,7 @@ def main() -> None:
                     if not target_country:
                         state_copy = load_ui_config()
                         target_country = state_copy.get("force_country", "") or ""
-                    master_fetch_and_test_country(target_country)
+                    master_fetch_and_test_country(target_country, min_interval=0.0)
                 threading.Thread(target=pull_task, daemon=True).start()
             elif cmd == "force_push":
                 mc = master_client.get_global_client()
