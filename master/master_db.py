@@ -226,7 +226,17 @@ class MasterDB:
 
     def enqueue_command(self, agent_id: str, command: str) -> bool:
         with self.lock:
-            row = self.conn.execute("SELECT command_queue FROM agents WHERE agent_id = ?", (agent_id,)).fetchone()
+            try:
+                row = self.conn.execute("SELECT command_queue FROM agents WHERE agent_id = ?", (agent_id,)).fetchone()
+            except sqlite3.OperationalError:
+                # Column might be missing if migration failed on startup due to locking
+                try:
+                    self.conn.execute("ALTER TABLE agents ADD COLUMN command_queue TEXT DEFAULT '[]'")
+                    row = self.conn.execute("SELECT command_queue FROM agents WHERE agent_id = ?", (agent_id,)).fetchone()
+                except Exception as e:
+                    print(f"[db] enqueue_command alter table failed: {e}")
+                    return False
+
             if not row:
                 return False
             try:
@@ -243,7 +253,16 @@ class MasterDB:
 
     def pop_commands(self, agent_id: str) -> list[str]:
         with self.lock:
-            row = self.conn.execute("SELECT command_queue FROM agents WHERE agent_id = ?", (agent_id,)).fetchone()
+            try:
+                row = self.conn.execute("SELECT command_queue FROM agents WHERE agent_id = ?", (agent_id,)).fetchone()
+            except sqlite3.OperationalError:
+                try:
+                    self.conn.execute("ALTER TABLE agents ADD COLUMN command_queue TEXT DEFAULT '[]'")
+                    row = self.conn.execute("SELECT command_queue FROM agents WHERE agent_id = ?", (agent_id,)).fetchone()
+                except Exception as e:
+                    print(f"[db] pop_commands alter table failed: {e}")
+                    return []
+                    
             if not row:
                 return []
             try:
