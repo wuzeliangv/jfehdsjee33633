@@ -436,7 +436,8 @@ def read_nodes() -> list[dict[str, Any]]:
     raw = read_json(NODES_FILE, [])
     if not isinstance(raw, list):
         return []
-    return [item for item in raw if isinstance(item, dict)]
+    # 读取时自动过滤已失效且非当前活跃连接的节点，保证内存与文件中的节点都是最新的
+    return [item for item in raw if isinstance(item, dict) and (item.get("probe_status") != "unavailable" or item.get("active"))]
 
 
 def update_nodes_atomic(
@@ -463,6 +464,10 @@ def update_nodes_atomic(
         elif set_active is False:
             for item in nodes:
                 item["active"] = False
+        
+        # 强制过滤已失效且非活跃连接的节点，确保 NODES_FILE 内只有有效节点
+        nodes = [n for n in nodes if n.get("probe_status") != "unavailable" or n.get("active")]
+        
         write_json(NODES_FILE, nodes)
         return nodes
 
