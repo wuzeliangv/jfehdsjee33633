@@ -437,6 +437,9 @@ class MasterHandler(BaseHTTPRequestHandler):
         if method == "POST" and path == "/admin/api/agents/delete":
             self._handle_admin_delete_agent()
             return
+        if method == "POST" and path == "/admin/api/agents/command":
+            self._handle_admin_agent_command()
+            return
 
         # 设置管理
         if method == "GET" and path == "/admin/api/settings":
@@ -595,7 +598,13 @@ class MasterHandler(BaseHTTPRequestHandler):
         if not isinstance(stats, dict):
             stats = {}
         DB.update_agent_heartbeat(agent["agent_id"], self._client_ip(), stats)
-        self._send_json({"ok": True, "master_time": time.time()})
+        
+        commands = DB.pop_commands(agent["agent_id"])
+        self._send_json({
+            "ok": True,
+            "master_time": time.time(),
+            "commands": commands
+        })
 
     def _handle_upload(self) -> None:
         agent = self._auth_agent()

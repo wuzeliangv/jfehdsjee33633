@@ -3751,6 +3751,33 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(result)
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        elif effective_path == "/api/master_trigger_pull":
+            try:
+                state_copy = state.copy()
+                target_country = state_copy.get("force_country", "") or ""
+                
+                # Use a fire-and-forget thread so the API responds immediately
+                def pull_task():
+                    master_fetch_and_test_country(target_country)
+                threading.Thread(target=pull_task, daemon=True).start()
+                self.send_json({"ok": True, "msg": "正在后台强行向主控请求并拉取节点进行测速..."})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        elif effective_path == "/api/master_trigger_push":
+            try:
+                mc = master_client.get_global_client()
+                if mc and mc.is_enabled():
+                    # We just need to upload the alive nodes
+                    nodes = pool.get_alive_nodes()
+                    if not nodes:
+                        self.send_json({"ok": False, "error": "本地尚无可用存活节点可上传"})
+                    else:
+                        mc.upload_nodes_async(nodes)
+                        self.send_json({"ok": True, "msg": f"正在向主控同步上报 {len(nodes)} 个可用节点..."})
+                else:
+                    self.send_json({"ok": False, "error": "主控功能未启用或未配置"})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         else:
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
@@ -3893,7 +3920,25 @@ def main() -> None:
             except Exception:
                 return {}
 
-        _master_client.start_background(stats_provider=_master_stats_provider)
+        def _master_command_handler(cmd: str) -> None:
+            print(f"[master_client] 收到主控下发指令: {cmd}", flush=True)
+            if cmd == "force_pull":
+                def pull_task():
+                    state_copy = load_ui_config()
+                    target_country = state_copy.get("force_country", "") or ""
+                    master_fetch_and_test_country(target_country)
+                threading.Thread(target=pull_task, daemon=True).start()
+            elif cmd == "force_push":
+                mc = master_client.get_global_client()
+                if mc:
+                    nodes = pool.get_alive_nodes()
+                    if nodes:
+                        mc.upload_nodes_async(nodes)
+
+        _master_client.start_background(
+            stats_provider=_master_stats_provider,
+            command_handler=_master_command_handler
+        )
         if _master_client.is_enabled():
             print(f"[master_client] 已启用,目标主控: {_master_client.master_url}", flush=True)
     except Exception as e:

@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS agents (
   last_seen     REAL,
   last_ip       TEXT,
   enabled       INTEGER DEFAULT 1,
-  stats_json    TEXT
+  stats_json    TEXT,
+  command_queue TEXT DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS nodes (
@@ -118,6 +119,15 @@ class MasterDB:
         )
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA_SQL)
+        
+        # 自动迁移旧数据表，增加 command_queue 字段
+        try:
+            cur = self.conn.execute("PRAGMA table_info(agents)")
+            columns = [row["name"] for row in cur.fetchall()]
+            if "command_queue" not in columns:
+                self.conn.execute("ALTER TABLE agents ADD COLUMN command_queue TEXT DEFAULT '[]'")
+        except Exception as e:
+            print(f"[db] 迁移 command_queue 失败: {e}")
 
     def close(self) -> None:
         with self.lock:
@@ -213,6 +223,39 @@ class MasterDB:
                 "DELETE FROM agents WHERE agent_id = ?", (agent_id,)
             )
         return cur.rowcount > 0
+
+    def enqueue_command(self, agent_id: str, command: str) -> bool:
+        with self.lock:
+            row = self.conn.execute("SELECT command_queue FROM agents WHERE agent_id = ?", (agent_id,)).fetchone()
+            if not row:
+                return False
+            try:
+                queue = json.loads(row["command_queue"] or "[]")
+            except Exception:
+                queue = []
+            if command not in queue:
+                queue.append(command)
+            cur = self.conn.execute(
+                "UPDATE agents SET command_queue = ? WHERE agent_id = ?",
+                (json.dumps(queue), agent_id)
+            )
+            return cur.rowcount > 0
+
+    def pop_commands(self, agent_id: str) -> list[str]:
+        with self.lock:
+            row = self.conn.execute("SELECT command_queue FROM agents WHERE agent_id = ?", (agent_id,)).fetchone()
+            if not row:
+                return []
+            try:
+                queue = json.loads(row["command_queue"] or "[]")
+            except Exception:
+                queue = []
+            if queue:
+                self.conn.execute(
+                    "UPDATE agents SET command_queue = '[]' WHERE agent_id = ?",
+                    (agent_id,)
+                )
+            return queue
 
     # ─── nodes ──────────────────────────────────────────────────
 

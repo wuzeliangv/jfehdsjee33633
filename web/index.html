@@ -1290,6 +1290,10 @@
           <div id="net_master_status_box" style="font-size: 12px; color: var(--text-secondary); line-height: 1.6; padding: 10px 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 6px;">
             ℹ️ 主控状态：加载中...
           </div>
+          <div style="margin-top: 12px; display: flex; gap: 10px;">
+            <button type="button" class="btn-primary" onclick="triggerMasterPull()" style="height: 32px; font-size: 12px; padding: 0 16px; border-radius: 8px;">立刻从主控拉取节点</button>
+            <button type="button" class="btn-primary" onclick="triggerMasterPush()" style="height: 32px; font-size: 12px; padding: 0 16px; border-radius: 8px; background: var(--success); color: white;">立刻上报本地活节点</button>
+          </div>
         </div>
 
 
@@ -3307,5 +3311,25 @@ function exportLogContent() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-</script>
+    async function triggerMasterPull() {
+      try {
+        const res = await fetch("/api/master_trigger_pull", { method: "POST" });
+        const data = await res.json();
+        if (data.ok) showToast(data.msg, "success");
+        else showToast(data.error || "触发拉取失败", "error");
+      } catch (e) {
+        showToast("请求异常", "error");
+      }
+    }
+    async function triggerMasterPush() {
+      try {
+        const res = await fetch("/api/master_trigger_push", { method: "POST" });
+        const data = await res.json();
+        if (data.ok) showToast(data.msg, "success");
+        else showToast(data.error || "触发上报失败", "error");
+      } catch (e) {
+        showToast("请求异常", "error");
+      }
+    }
+  </script>
 </body></html>

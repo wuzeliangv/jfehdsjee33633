@@ -61,7 +61,7 @@ class MasterClient:
     """与主控通信的客户端。线程安全。"""
 
     AGENT_FILE_NAME = "master_agent.json"
-    HEARTBEAT_INTERVAL = 60          # 秒
+    HEARTBEAT_INTERVAL = 60.0          # 秒
     REQUEST_TIMEOUT = 10             # HTTP 超时
     UPLOAD_BATCH_SIZE = 100          # 单次 upload 最大节点数
 
@@ -81,9 +81,10 @@ class MasterClient:
         self.agent_name = ""
 
         # 后台
+        self._stats_provider: Callable[[], dict] | None = None
+        self._command_handler: Callable[[str], None] | None = None
         self._stop_event = threading.Event()
         self._hb_thread: threading.Thread | None = None
-        self._stats_provider: Callable[[], dict] | None = None
 
         # 统计
         self._last_register_at: float = 0.0
@@ -244,6 +245,15 @@ class MasterClient:
             return False
         with self.lock:
             self._last_heartbeat_at = time.time()
+            
+        cmds = res.get("commands") or []
+        for cmd in cmds:
+            if self._command_handler:
+                try:
+                    self._command_handler(cmd)
+                except Exception as e:
+                    _log(f"执行下发命令 {cmd} 时出错: {e}")
+                    
         return True
 
     def upload_nodes(self, nodes: list[dict]) -> dict:
@@ -330,16 +340,21 @@ class MasterClient:
     # ── 后台心跳 ─────────────────────────────────────────────
 
     def start_background(
-        self, stats_provider: Callable[[], dict] | None = None
+        self,
+        stats_provider: Callable[[], dict] | None = None,
+        command_handler: Callable[[str], None] | None = None
     ) -> None:
-        if self._hb_thread is not None and self._hb_thread.is_alive():
-            return
-        self._stats_provider = stats_provider
-        self._stop_event.clear()
-        self._hb_thread = threading.Thread(
-            target=self._hb_loop, daemon=True, name="MasterHeartbeat"
-        )
-        self._hb_thread.start()
+        """启动后台心跳线程。"""
+        with self.lock:
+            if self._hb_thread and self._hb_thread.is_alive():
+                return
+            self._stats_provider = stats_provider
+            self._command_handler = command_handler
+            self._stop_event.clear()
+            self._hb_thread = threading.Thread(
+                target=self._hb_loop, name="MasterHB", daemon=True
+            )
+            self._hb_thread.start()
 
     def stop(self) -> None:
         self._stop_event.set()

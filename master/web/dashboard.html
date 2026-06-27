@@ -418,10 +418,12 @@
             <td class="mono">${fmtAge(a.last_seen)}</td>
             <td class="mono">${a.last_ip || '—'}</td>
             <td>${localStats}</td>
-            <td style="white-space: nowrap; width: 140px;">
+            <td style="white-space: nowrap; width: 220px;">
               <div class="action-group">
                 ${toggleAction}
                 <button class="btn-xs del" onclick="agentAction('delete','${a.agent_id}')">移除</button>
+                <button class="btn-xs" style="color:var(--primary)" title="强制被控端立即执行一轮本地测活并同步到主控" onclick="agentCommand('force_push','${a.agent_id}')">下发上报</button>
+                <button class="btn-xs" style="color:var(--primary)" title="强制被控端立刻从主控拉取缺失的节点" onclick="agentCommand('force_pull','${a.agent_id}')">下发拉取</button>
               </div>
             </td>
           </tr>
@@ -449,7 +451,25 @@
           toast("操作无法完成: " + (res.error || ""), "err");
         }
       } catch (e) {
-        toast("网络请求中断: " + e.message, "err");
+        toast("请求失败，网络异常", "err");
+      }
+    }
+
+    async function agentCommand(cmd, agentId) {
+      if (cmd === "force_push" && !confirm(`即将向网关 [${agentId}] 下发指令：\n让该网关立即上传其本地可用的所有节点。\n是否继续？`)) return;
+      if (cmd === "force_pull" && !confirm(`即将向网关 [${agentId}] 下发指令：\n让该网关立即向主控请求并拉取缺失的节点。\n是否继续？`)) return;
+      try {
+        const res = await fetchJSON(`/admin/api/agents/command`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agent_id: agentId, command: cmd })
+        });
+        if (res.ok) {
+          toast('指令已下发（将于下一次心跳时被网关获取并执行）', "ok");
+        } else {
+          toast("下发失败: " + (res.error || ""), "err");
+        }
+      } catch (e) {
+        toast("请求失败，网络异常", "err");
       }
     }
 
