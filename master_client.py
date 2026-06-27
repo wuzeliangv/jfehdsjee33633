@@ -288,6 +288,11 @@ class MasterClient:
         )
         return {"ok": True, **total}
 
+    def upload_nodes_async(self, nodes: list[dict]) -> None:
+        """异步在后台线程中上传节点，防止阻塞调用者。"""
+        import threading
+        threading.Thread(target=self.upload_nodes, args=(nodes,), daemon=True).start()
+
     def feedback(self, node: dict, reason: str) -> bool:
         """反馈某节点本地不可用,主控会降权。"""
         if not self.is_enabled():
