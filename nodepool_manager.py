@@ -3324,7 +3324,7 @@ class Handler(BaseHTTPRequestHandler):
                 }
                 # 不要把 enroll_token / agent_token 发到前端
                 status["master_enroll_token_set"] = bool(ui_cfg.get("master_enroll_token"))
-                self.send_json({"ok": True, "status": status})
+                self.send_json({"ok": True, "status": status, "server_time": time.time()})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         else:

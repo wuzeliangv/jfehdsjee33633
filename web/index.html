@@ -3203,16 +3203,17 @@ async function loadMasterStatus() {
       box.innerHTML = "⚠️ 已勾选启用主控但未配置主控地址";
       return;
     }
+    const serverTime = data.server_time || (Date.now()/1000);
     const fmtAge = (ts) => {
       if (!ts) return "从未";
-      const d = Math.max(0, Math.floor(Date.now()/1000 - ts));
+      const d = Math.max(0, Math.floor(serverTime - ts));
       if (d < 60) return d + " 秒前";
       if (d < 3600) return Math.floor(d/60) + " 分钟前";
       if (d < 86400) return Math.floor(d/3600) + " 小时前";
       return Math.floor(d/86400) + " 天前";
     };
     const registered = !!s.agent_id;
-    const hbAlive = s.last_heartbeat_at && (Date.now()/1000 - s.last_heartbeat_at < 180);
+    const hbAlive = s.last_heartbeat_at && (serverTime - s.last_heartbeat_at < 180);
     const dot = registered && hbAlive ? "🟢" : (registered ? "🟡" : "🔴");
     const statusLabel = registered ? (hbAlive ? "已连接" : "心跳停滞") : "未注册";
     let html = "";
