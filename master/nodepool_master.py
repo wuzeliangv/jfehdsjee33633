@@ -826,15 +826,32 @@ def probe_worker_loop() -> None:
                 time.sleep(min(interval, 60))
                 continue
 
+            print(
+                f"[probe] picked {len(batch)} nodes to check in this batch",
+                flush=True,
+            )
+
             threads: list[threading.Thread] = []
             for node in batch:
                 sem.acquire()
 
                 def _do_probe(node: dict) -> None:
+                    fp_short = node.get("fingerprint", "?")[:8]
+                    host = node.get("host", "")
+                    port = node.get("port", 0)
+                    proto = node.get("proto", "udp")
                     try:
+                        print(
+                            f"[probe] [{fp_short}] checking node {host}:{port} ({proto})...",
+                            flush=True,
+                        )
                         if not probe_l1(
-                            node["host"], int(node["port"]), node.get("proto") or "udp"
+                            host, int(port), proto
                         ):
+                            print(
+                                f"[probe] [{fp_short}] {host}:{port} L1 reachability check FAILED",
+                                flush=True,
+                            )
                             DB.update_probe_result(node["fingerprint"], False, None)
                             return
                         try:
@@ -854,6 +871,18 @@ def probe_worker_loop() -> None:
                                 )
                         finally:
                             TUN_POOL.release(idx)
+                        
+                        if alive:
+                            print(
+                                f"[probe] [{fp_short}] {host}:{port} L2 OpenVPN handshake SUCCESS (latency: {hs_ms}ms)",
+                                flush=True,
+                            )
+                        else:
+                            print(
+                                f"[probe] [{fp_short}] {host}:{port} L2 OpenVPN handshake FAILED",
+                                flush=True,
+                            )
+
                         DB.update_probe_result(
                             node["fingerprint"],
                             alive,
@@ -861,7 +890,7 @@ def probe_worker_loop() -> None:
                         )
                     except Exception as e:
                         print(
-                            f"[probe] node {node.get('fingerprint','?')[:8]} error: {e}",
+                            f"[probe] [{fp_short}] {host}:{port} check error: {e}",
                             flush=True,
                         )
                     finally:
