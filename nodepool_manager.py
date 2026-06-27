@@ -3753,12 +3753,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         elif effective_path == "/api/master_trigger_pull":
             try:
-                state_copy = state.copy()
-                target_country = state_copy.get("force_country", "") or ""
+                ui_cfg = load_ui_config()
+                target_country = ui_cfg.get("force_country", "") or ""
                 
                 # Use a fire-and-forget thread so the API responds immediately
                 def pull_task():
-                    master_fetch_and_test_country(target_country)
+                    master_fetch_and_test_country(target_country, min_interval=0.0)
                 threading.Thread(target=pull_task, daemon=True).start()
                 self.send_json({"ok": True, "msg": "正在后台强行向主控请求并拉取节点进行测速..."})
             except Exception as exc:

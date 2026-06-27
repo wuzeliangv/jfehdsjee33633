@@ -3315,20 +3315,20 @@ function exportLogContent() {
       try {
         const res = await fetch("./api/master_trigger_pull", { method: "POST" });
         const data = await res.json();
-        if (data.ok) showToast(data.msg, "success");
-        else showToast(data.error || "触发拉取失败", "error");
+        if (data.ok) alert(data.msg);
+        else alert(data.error || "触发拉取失败");
       } catch (e) {
-        showToast("请求异常", "error");
+        alert("请求异常");
       }
     }
     async function triggerMasterPush() {
       try {
         const res = await fetch("./api/master_trigger_push", { method: "POST" });
         const data = await res.json();
-        if (data.ok) showToast(data.msg, "success");
-        else showToast(data.error || "触发上报失败", "error");
+        if (data.ok) alert(data.msg);
+        else alert(data.error || "触发上报失败");
       } catch (e) {
-        showToast("请求异常", "error");
+        alert("请求异常");
       }
     }
   </script>
