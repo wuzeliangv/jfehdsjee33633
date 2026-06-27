@@ -766,6 +766,27 @@ class MasterHandler(BaseHTTPRequestHandler):
         ok = DB.delete_agent(agent_id)
         self._send_json({"ok": ok})
 
+    def _handle_admin_agent_command(self) -> None:
+        if not self._auth_admin():
+            self._send_json({"ok": False, "error": "unauthorized"}, 401)
+            return
+        try:
+            body = self._read_json_body()
+        except ValueError as e:
+            self._send_json({"ok": False, "error": str(e)}, 400)
+            return
+        agent_id = str(body.get("agent_id") or "").strip()
+        cmd = str(body.get("command") or "").strip()
+        if not agent_id or not cmd:
+            self._send_json({"ok": False, "error": "missing_args"}, 400)
+            return
+        ok = DB.enqueue_command(agent_id, cmd)
+        if ok:
+            master_log(f"[admin] 向被控端 {agent_id} 下发了强制命令: {cmd}")
+            self._send_json({"ok": True})
+        else:
+            self._send_json({"ok": False, "error": "agent_not_found"}, 404)
+
     def _handle_admin_get_logs(self) -> None:
         if not self._auth_admin():
             self._send_json({"ok": False, "error": "unauthorized"}, 401)
