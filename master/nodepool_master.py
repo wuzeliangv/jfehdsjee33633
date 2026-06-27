@@ -286,6 +286,13 @@ class MasterHandler(BaseHTTPRequestHandler):
     server_version = "NodePoolMaster/1.0"
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        # 过滤掉后台高频轮询的 API 访问日志（如 stats, agents, logs），只保留核心工作日志
+        try:
+            req_line = str(args[0]) if args else ""
+            if any(p in req_line for p in ["/admin/api/stats", "/admin/api/agents", "/admin/api/logs"]):
+                return
+        except Exception:
+            pass
         # 紧凑日志,统一前缀
         master_log(f"[http] {self.address_string()} {format % args}")
 
