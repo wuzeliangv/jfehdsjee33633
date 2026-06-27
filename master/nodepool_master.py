@@ -118,6 +118,22 @@ def load_config() -> dict[str, Any]:
     return cfg
 
 
+def save_config() -> None:
+    """将当前 CONFIG 持久化写回 master_config.json（原子写入）。"""
+    try:
+        tmp = CONFIG_PATH.with_suffix(CONFIG_PATH.suffix + ".tmp")
+        tmp.write_text(
+            json.dumps(CONFIG, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        tmp.replace(CONFIG_PATH)
+        try:
+            os.chmod(CONFIG_PATH, 0o600)
+        except OSError:
+            pass
+    except Exception as e:
+        print(f"[master] 配置写入失败: {e}", flush=True)
+
+
 CONFIG = load_config()
 DB = MasterDB(DB_PATH)
 TUN_POOL = TunIndexPool(max_concurrency=int(CONFIG.get("probe_concurrency", 4)))
@@ -399,6 +415,14 @@ class MasterHandler(BaseHTTPRequestHandler):
             return
         if method == "POST" and path == "/admin/api/agents/delete":
             self._handle_admin_delete_agent()
+            return
+
+        # 设置管理
+        if method == "GET" and path == "/admin/api/settings":
+            self._handle_admin_get_settings()
+            return
+        if method == "POST" and path == "/admin/api/settings":
+            self._handle_admin_update_settings()
             return
 
         self._send_json({"ok": False, "error": "not_found"}, 404)
@@ -691,6 +715,88 @@ class MasterHandler(BaseHTTPRequestHandler):
             return
         ok = DB.delete_agent(agent_id)
         self._send_json({"ok": ok})
+
+    def _handle_admin_get_settings(self) -> None:
+        if not self._auth_admin():
+            self._send_json({"ok": False, "error": "unauthorized"}, 401)
+            return
+        self._send_json({
+            "ok": True,
+            "settings": {
+                "admin_token": CONFIG.get("admin_token", ""),
+                "enroll_token": CONFIG.get("enroll_token", ""),
+            },
+        })
+
+    def _handle_admin_update_settings(self) -> None:
+        if not self._auth_admin():
+            self._send_json({"ok": False, "error": "unauthorized"}, 401)
+            return
+        try:
+            body = self._read_json_body()
+        except ValueError as e:
+            self._send_json({"ok": False, "error": str(e)}, 400)
+            return
+
+        new_admin = body.get("admin_token")
+        new_enroll = body.get("enroll_token")
+        changed: list[str] = []
+
+        if new_admin is not None:
+            new_admin = str(new_admin).strip()
+            if len(new_admin) < 6:
+                self._send_json(
+                    {"ok": False, "error": "管理口令长度不能少于 6 位"}, 400
+                )
+                return
+            if new_admin != CONFIG.get("admin_token"):
+                CONFIG["admin_token"] = new_admin
+                changed.append("admin_token")
+
+        if new_enroll is not None:
+            new_enroll = str(new_enroll).strip()
+            if len(new_enroll) < 6:
+                self._send_json(
+                    {"ok": False, "error": "注册口令长度不能少于 6 位"}, 400
+                )
+                return
+            if new_enroll != CONFIG.get("enroll_token"):
+                CONFIG["enroll_token"] = new_enroll
+                changed.append("enroll_token")
+
+        if not changed:
+            self._send_json({"ok": True, "changed": [], "message": "无变更"})
+            return
+
+        save_config()
+        print(
+            f"[master] 设置已更新: {', '.join(changed)}",
+            flush=True,
+        )
+
+        # admin_token 变更时需重新签发 session cookie，否则当前会话立即失效
+        if "admin_token" in changed:
+            cookie_val = _admin_session_value()
+            resp_body = json.dumps(
+                {"ok": True, "changed": changed, "message": "设置已保存"}
+            ).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(resp_body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header(
+                "Set-Cookie",
+                f"mp_session={cookie_val}; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200",
+            )
+            self.end_headers()
+            try:
+                self.wfile.write(resp_body)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+        else:
+            self._send_json(
+                {"ok": True, "changed": changed, "message": "设置已保存"}
+            )
 
 
 # ─── 后台 worker ───────────────────────────────────────────────

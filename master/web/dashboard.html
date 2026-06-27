@@ -101,6 +101,42 @@
 
     .empty { text-align: center; padding: 40px 0; color: var(--text-dim); font-size: 13px; }
     .refresh-info { font-size: 11px; color: var(--text-dim); margin-left: 8px; }
+
+    /* Modal Dialog */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(10, 11, 15, 0.85); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; opacity: 0; pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal-overlay.show { opacity: 1; pointer-events: auto; }
+    .modal {
+      background: rgba(20, 22, 30, 0.95); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px; width: 100%; max-width: 460px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      transform: scale(0.95); transition: transform 0.25s ease;
+    }
+    .modal-overlay.show .modal { transform: scale(1); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-title { font-size: 15px; font-weight: 600; }
+    .modal-close { background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer; }
+    .modal-close:hover { color: var(--text); }
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-group input {
+      width: 100%; height: 38px; padding: 0 12px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text);
+      border-radius: 8px; font-family: inherit; font-size: 13px;
+    }
+    .form-group input:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.08); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+    .btn-primary {
+      height: 32px; padding: 0 18px; font-size: 12px; font-weight: 500;
+      background: var(--accent); border: none; color: #000;
+      border-radius: 7px; cursor: pointer; transition: opacity .15s;
+    }
+    .btn-primary:hover { opacity: 0.9; }
   </style>
 </head>
 <body>
@@ -111,6 +147,7 @@
     </div>
     <div class="topbar-actions">
       <button class="btn-ghost" onclick="refresh()">手动刷新</button>
+      <button class="btn-ghost" onclick="openSettings()">系统设置</button>
       <button class="btn-ghost btn-danger" onclick="logout()">退出</button>
     </div>
   </div>
@@ -145,6 +182,28 @@
       </div>
     </div>
   </main>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settings-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">系统设置</div>
+        <button class="modal-close" onclick="closeSettings()">&times;</button>
+      </div>
+      <div class="form-group">
+        <label for="input-admin-token">管理口令 (Web/CLI)</label>
+        <input type="text" id="input-admin-token" placeholder="请输入新的管理口令">
+      </div>
+      <div class="form-group">
+        <label for="input-enroll-token">被控注册口令 (Agent Enroll)</label>
+        <input type="text" id="input-enroll-token" placeholder="请输入新的被控注册口令">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeSettings()">取消</button>
+        <button class="btn-primary" onclick="saveSettings()">保存修改</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast"></div>
 
@@ -278,6 +337,62 @@
       } catch (e) {
         if (e.message !== "unauthorized") {
           toast("刷新失败: " + e.message, "err");
+        }
+      }
+    }
+
+    async function openSettings() {
+      try {
+        const res = await fetchJSON("/admin/api/settings");
+        if (res.ok) {
+          document.getElementById("input-admin-token").value = res.settings.admin_token || "";
+          document.getElementById("input-enroll-token").value = res.settings.enroll_token || "";
+          document.getElementById("settings-overlay").classList.add("show");
+        } else {
+          toast("获取设置失败: " + (res.error || ""), "err");
+        }
+      } catch (e) {
+        if (e.message !== "unauthorized") {
+          toast("加载设置失败: " + e.message, "err");
+        }
+      }
+    }
+
+    function closeSettings() {
+      document.getElementById("settings-overlay").classList.remove("show");
+    }
+
+    async function saveSettings() {
+      const adminToken = document.getElementById("input-admin-token").value.trim();
+      const enrollToken = document.getElementById("input-enroll-token").value.trim();
+
+      if (adminToken.length < 6 || enrollToken.length < 6) {
+        toast("口令长度不能少于 6 位", "err");
+        return;
+      }
+
+      try {
+        const res = await fetchJSON("/admin/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            admin_token: adminToken,
+            enroll_token: enrollToken
+          })
+        });
+
+        if (res.ok) {
+          toast("设置已保存", "ok");
+          closeSettings();
+          // 如果修改了管理口令，刷新可能需要使用新口令重构的 session，
+          // 因为接口如果重新签发了 cookie，在 fetch 后浏览器会自动更新 cookie
+          refresh();
+        } else {
+          toast("保存失败: " + (res.error || ""), "err");
+        }
+      } catch (e) {
+        if (e.message !== "unauthorized") {
+          toast("保存设置出错: " + e.message, "err");
         }
       }
     }
