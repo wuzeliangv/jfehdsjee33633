@@ -3313,7 +3313,7 @@ function exportLogContent() {
 }
     async function triggerMasterPull() {
       try {
-        const res = await fetch("/api/master_trigger_pull", { method: "POST" });
+        const res = await fetch("./api/master_trigger_pull", { method: "POST" });
         const data = await res.json();
         if (data.ok) showToast(data.msg, "success");
         else showToast(data.error || "触发拉取失败", "error");
@@ -3323,7 +3323,7 @@ function exportLogContent() {
     }
     async function triggerMasterPush() {
       try {
-        const res = await fetch("/api/master_trigger_push", { method: "POST" });
+        const res = await fetch("./api/master_trigger_push", { method: "POST" });
         const data = await res.json();
         if (data.ok) showToast(data.msg, "success");
         else showToast(data.error || "触发上报失败", "error");
