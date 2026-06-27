@@ -327,10 +327,86 @@
     </div>
   </div>
 
+  <!-- Confirm Modal -->
+  <div class="overlay" id="confirm-overlay">
+    <div class="modal" style="max-width: 400px; text-align: center;">
+      <h3 id="confirm-title" style="margin-bottom: 12px; font-size: 18px;">提示</h3>
+      <p id="confirm-text" style="color: var(--text-sec); font-size: 14px; white-space: pre-wrap; line-height: 1.5; margin: 0 0 24px 0;"></p>
+      <div class="modal-actions" style="justify-content: center; gap: 16px;">
+        <button class="btn btn-ghost" id="confirm-cancel" style="flex: 1;">取消</button>
+        <button class="btn btn-primary" id="confirm-ok" style="flex: 1;">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prompt Modal -->
+  <div class="overlay" id="prompt-overlay">
+    <div class="modal">
+      <h3 id="prompt-title" style="margin-bottom: 12px; font-size: 18px;">输入信息</h3>
+      <div class="form-item">
+        <p id="prompt-text" style="color: var(--text-sec); font-size: 14px; white-space: pre-wrap; line-height: 1.5; margin-bottom: 16px;"></p>
+        <input type="text" id="prompt-input" autocomplete="off" placeholder="点击输入...">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="prompt-cancel">取消</button>
+        <button class="btn btn-primary" id="prompt-ok">确定</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script>
     let timer = null;
+
+    function customConfirm(text) {
+      return new Promise(resolve => {
+        const overlay = document.getElementById('confirm-overlay');
+        document.getElementById('confirm-text').textContent = text;
+        const btnCancel = document.getElementById('confirm-cancel');
+        const btnOk = document.getElementById('confirm-ok');
+        
+        const cleanup = () => {
+          overlay.classList.remove('show');
+          btnCancel.onclick = null;
+          btnOk.onclick = null;
+        };
+        
+        btnCancel.onclick = () => { cleanup(); resolve(false); };
+        btnOk.onclick = () => { cleanup(); resolve(true); };
+        
+        overlay.classList.add('show');
+      });
+    }
+
+    function customPrompt(text, defaultVal = '') {
+      return new Promise(resolve => {
+        const overlay = document.getElementById('prompt-overlay');
+        document.getElementById('prompt-text').textContent = text;
+        const input = document.getElementById('prompt-input');
+        input.value = defaultVal;
+        
+        const btnCancel = document.getElementById('prompt-cancel');
+        const btnOk = document.getElementById('prompt-ok');
+        
+        const cleanup = () => {
+          overlay.classList.remove('show');
+          btnCancel.onclick = null;
+          btnOk.onclick = null;
+          input.onkeydown = null;
+        };
+        
+        btnCancel.onclick = () => { cleanup(); resolve(null); };
+        btnOk.onclick = () => { cleanup(); resolve(input.value); };
+        input.onkeydown = (e) => {
+          if (e.key === 'Enter') { cleanup(); resolve(input.value); }
+          if (e.key === 'Escape') { cleanup(); resolve(null); }
+        };
+        
+        overlay.classList.add('show');
+        setTimeout(() => input.focus(), 100);
+      });
+    }
 
     function fmtAge(ts) {
       if (!ts) return "—";
@@ -438,7 +514,10 @@
     }
 
     async function agentAction(action, agentId) {
-      if (action === "delete" && !confirm(`即将永久移除网关 [${agentId}]\n该网关将被断开连接且无法恢复，是否继续？`)) return;
+      if (action === "delete") {
+        const ok = await customConfirm(`即将永久移除网关 [${agentId}]\n该网关将被断开连接且无法恢复，是否继续？`);
+        if (!ok) return;
+      }
       try {
         const res = await fetchJSON(`/admin/api/agents/${action}`, {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -456,9 +535,12 @@
     }
 
     async function agentCommand(cmd, agentId) {
-      if (cmd === "force_push" && !confirm(`即将向网关 [${agentId}] 下发指令：\n让该网关立即上传其本地可用的所有节点。\n是否继续？`)) return;
+      if (cmd === "force_push") {
+        const ok = await customConfirm(`即将向网关 [${agentId}] 下发指令：\n让该网关立即上传其本地可用的所有节点。\n是否继续？`);
+        if (!ok) return;
+      }
       if (cmd === "force_pull") {
-        let ccode = prompt(`即将向网关 [${agentId}] 下发拉取指令。\n\n如果你想强行指定它拉取某个国家（例如 HK, JP, US），请在此输入。\n如果不指定（留空直接确定），则按该被控自身的网络设置进行拉取：`);
+        let ccode = await customPrompt(`即将向网关 [${agentId}] 下发拉取指令。\n\n如果你想强行指定它拉取某个国家（例如 HK, JP, US），请在此输入。\n如果不指定（留空直接确定），则按该被控自身的网络设置进行拉取：`);
         if (ccode === null) return; // 用户取消
         ccode = ccode.trim().toUpperCase();
         if (ccode !== "") {
