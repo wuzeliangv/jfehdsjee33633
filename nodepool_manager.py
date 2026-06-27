@@ -2588,25 +2588,26 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
             valid_nodes=valid_nodes_count,
         )
 
-        # 分布式主控:把本轮测速 OK 的节点，以及在连接状态下无法测试的“待检测”节点，批量上报给主控进行云端测活
+        # 分布式主控:将本地所有节点(已测活+待检测)统一上报给主控，
+        # 由主控集中进行节点质量检测。被控端锁定国家后不会测其他国家节点，
+        # 但这些节点对主控仍有价值，因此无条件全量上报。
         try:
             mc = master_client.get_global_client()
             if mc is not None and mc.is_enabled():
                 upload_candidates = []
-                # 如果当前已建立活跃 VPN 连接，被控端无法直接测活，则将待检测节点打包上报，交由主控端进行分布式/云端测活
-                if active_openvpn_running():
-                    untested_nodes = [n for n in merged if n.get("probe_status") == "not_checked"]
-                    for un in untested_nodes:
-                        un_copy = un.copy()
-                        un_copy["latency_ms"] = 0
-                        un_copy["speed"] = 0
-                        upload_candidates.append(un_copy)
-                    if upload_candidates:
-                        print(f"[维护线程] 检测到当前处于活跃 VPN 连接中，已将 {len(upload_candidates)} 个待检测节点打包上报主控进行云测。", flush=True)
-                else:
-                    upload_candidates = [n for n in merged if n.get("probe_status") == "available"]
-                
+                for n in merged:
+                    status = n.get("probe_status", "")
+                    if status in ("available", "not_checked"):
+                        n_copy = n.copy()
+                        if status == "not_checked":
+                            n_copy["latency_ms"] = 0
+                            n_copy["speed"] = 0
+                        upload_candidates.append(n_copy)
+
                 if upload_candidates:
+                    tested = sum(1 for c in upload_candidates if c.get("probe_status") == "available")
+                    untested = len(upload_candidates) - tested
+                    print(f"[维护线程] 向主控上报 {len(upload_candidates)} 个节点 (已测活 {tested}, 待检测 {untested})", flush=True)
                     threading.Thread(
                         target=mc.upload_nodes,
                         args=(upload_candidates,),
@@ -3847,13 +3848,16 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 mc = master_client.get_global_client()
                 if mc and mc.is_enabled():
-                    # We just need to upload the alive nodes
-                    nodes = [n for n in read_nodes() if n.get("probe_status") == "available"]
+                    # 上传所有节点(已测活+待检测)，由主控集中检测
+                    all_nodes = read_nodes()
+                    nodes = [n for n in all_nodes if n.get("probe_status") in ("available", "not_checked")]
                     if not nodes:
-                        self.send_json({"ok": False, "error": "本地尚无可用存活节点可上传"})
+                        self.send_json({"ok": False, "error": "本地尚无任何节点可上传"})
                     else:
+                        tested = sum(1 for n in nodes if n.get("probe_status") == "available")
+                        untested = len(nodes) - tested
                         mc.upload_nodes_async(nodes)
-                        self.send_json({"ok": True, "msg": f"正在向主控同步上报 {len(nodes)} 个可用节点..."})
+                        self.send_json({"ok": True, "msg": f"正在向主控同步上报 {len(nodes)} 个节点 (已测活 {tested}, 待检测 {untested})..."})
                 else:
                     self.send_json({"ok": False, "error": "主控功能未启用或未配置"})
             except Exception as exc:
@@ -4014,7 +4018,7 @@ def main() -> None:
             elif cmd == "force_push":
                 mc = master_client.get_global_client()
                 if mc:
-                    nodes = [n for n in read_nodes() if n.get("probe_status") == "available"]
+                    nodes = [n for n in read_nodes() if n.get("probe_status") in ("available", "not_checked")]
                     if nodes:
                         mc.upload_nodes_async(nodes)
 
