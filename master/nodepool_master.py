@@ -299,6 +299,13 @@ class MasterHandler(BaseHTTPRequestHandler):
     # ── 工具方法 ─────────────────────────────────────────────
 
     def _client_ip(self) -> str:
+        # 支持从 Nginx / Cloudflare 等反向代理或 CDN 头部提取真实客户端/被控端 IP
+        forwarded = self.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        real_ip = self.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip.strip()
         try:
             return self.client_address[0]
         except Exception:
