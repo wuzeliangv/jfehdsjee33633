@@ -30,6 +30,46 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_FILE="/etc/systemd/system/nodepool-master.service"
 
+# Interactive Domain/SSL configuration questions
+IS_INTERACTIVE=false
+if [ -t 0 ] || [ -c /dev/tty ]; then
+    IS_INTERACTIVE=true
+fi
+
+USE_HTTPS=false
+DOMAIN_NAME=""
+
+if [ "$IS_INTERACTIVE" = true ]; then
+    echo
+    echo -ne "${YELLOW}是否要绑定独立域名并自动配置 SSL/HTTPS (免费 Let's Encrypt 证书自动续签)？[y/N]: ${NC}" >/dev/tty
+    read -r SSL_CHOICE </dev/tty || true
+    if [[ "$SSL_CHOICE" =~ ^[yY](es)?$ ]]; then
+        while true; do
+            echo -ne "${YELLOW}请输入主控端域名 (e.g. master.yourdomain.com): ${NC}" >/dev/tty
+            read -r DOMAIN_NAME </dev/tty || true
+            DOMAIN_NAME="$(echo "${DOMAIN_NAME}" | tr -d '[:space:]')"
+            if [ -z "$DOMAIN_NAME" ]; then
+                log_warning "域名不能为空，请重新输入。" >/dev/tty
+                continue
+            fi
+            
+            log_info "正在检验域名 ${DOMAIN_NAME} 的 DNS A 记录解析..."
+            RESOLVED_IP="$(getent ahosts "${DOMAIN_NAME}" | awk '{print $1}' | head -n 1 || true)"
+            PUBLIC_IP="$(curl -fsS --max-time 3 https://api.ipify.org 2>/dev/null || true)"
+            if [ -n "$PUBLIC_IP" ] && [ -n "$RESOLVED_IP" ] && [ "$RESOLVED_IP" != "$PUBLIC_IP" ]; then
+                log_warning "警告: 域名 ${DOMAIN_NAME} 解析到的 IP (${RESOLVED_IP}) 与本机公网 IP (${PUBLIC_IP}) 不符。" >/dev/tty
+                echo -ne "${YELLOW}是否忽略此警告并继续？ [y/N]: ${NC}" >/dev/tty
+                read -r IGNORE_WARNING </dev/tty || true
+                if [[ ! "$IGNORE_WARNING" =~ ^[yY](es)?$ ]]; then
+                    continue
+                fi
+            fi
+            USE_HTTPS=true
+            break
+        done
+    fi
+fi
+
 # 1) 依赖
 log_info "正在检查依赖 (python3, openvpn, iproute2)..."
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
@@ -141,6 +181,81 @@ PY
 )"
 fi
 
+# 6) 证书与反代配置（可选）
+configure_nginx_ssl() {
+    local domain="$1"
+    local port="$2"
+    log_info "正在自动安装 Nginx 与 Certbot (Let's Encrypt SSL 申请工具)..."
+    if has_cmd apt-get; then
+        apt-get update -y >/dev/null 2>&1 || true
+        apt-get install -y nginx certbot python3-certbot-nginx >/dev/null 2>&1
+    elif has_cmd dnf; then
+        dnf install -y epel-release >/dev/null 2>&1 || true
+        dnf install -y nginx certbot python3-certbot-nginx >/dev/null 2>&1
+    elif has_cmd yum; then
+        yum install -y epel-release >/dev/null 2>&1 || true
+        yum install -y nginx certbot python3-certbot-nginx >/dev/null 2>&1
+    fi
+    
+    log_info "正在配置 Nginx 反向代理..."
+    local nginx_conf=""
+    if [ -d /etc/nginx/sites-available ]; then
+        nginx_conf="/etc/nginx/sites-available/nodepool-master"
+    else
+        nginx_conf="/etc/nginx/conf.d/nodepool-master.conf"
+    fi
+    
+    cat > "${nginx_conf}" <<EOF
+server {
+    listen 80;
+    server_name ${domain};
+
+    location / {
+        proxy_pass http://127.0.0.1:${port};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 600s;
+    }
+}
+EOF
+    if [ -d /etc/nginx/sites-available ] && [ -d /etc/nginx/sites-enabled ]; then
+        ln -sf "${nginx_conf}" "/etc/nginx/sites-enabled/nodepool-master"
+        rm -f /etc/nginx/sites-enabled/default || true
+    fi
+    
+    systemctl restart nginx >/dev/null 2>&1 || true
+    
+    log_info "正在通过 Certbot 申请 SSL 证书并部署 HTTPS (这需要 1-2 分钟)..."
+    if certbot --nginx -d "${domain}" --non-interactive --agree-tos --register-unsafely-without-email --redirect; then
+        log_success "SSL 证书申请并配置成功！"
+        systemctl reload nginx >/dev/null 2>&1 || true
+    else
+        log_error "SSL 证书申请失败，请检查 80 端口与域名 DNS。系统已退回到本地 HTTP 服务模式。"
+        USE_HTTPS=false
+    fi
+}
+
+if [ "$USE_HTTPS" = "true" ]; then
+    configure_nginx_ssl "${DOMAIN_NAME}" "${LISTEN_PORT:-28080}"
+    # 修改 listen_host 为 127.0.0.1，防止外部通过 IP 绕过 HTTPS 直连
+    python3 - <<PY
+import json
+try:
+    with open("${CONFIG_FILE}", "r", encoding="utf-8") as f:
+        data = json.load(f)
+    data["listen_host"] = "127.0.0.1"
+    with open("${CONFIG_FILE}", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+except Exception:
+    pass
+PY
+    systemctl restart nodepool-master.service >/dev/null 2>&1 || true
+fi
+
 PUBLIC_IP="$(curl -fsS --max-time 3 https://api.ipify.org 2>/dev/null || true)"
 [ -z "${PUBLIC_IP}" ] && PUBLIC_IP="<请填写本机公网IP>"
 
@@ -148,7 +263,11 @@ echo
 echo -e "${GREEN}┌──────────────────────────────────────────────────┐${NC}"
 echo -e "${GREEN}│        NodePool 主控部署成功                     │${NC}"
 echo -e "${GREEN}└──────────────────────────────────────────────────┘${NC}"
-echo -e "  Web Dashboard : ${BLUE}http://${PUBLIC_IP}:${LISTEN_PORT:-28080}/${NC}"
+if [ "$USE_HTTPS" = "true" ]; then
+    echo -e "  Web Dashboard : ${BLUE}https://${DOMAIN_NAME}/${NC}"
+else
+    echo -e "  Web Dashboard : ${BLUE}http://${PUBLIC_IP}:${LISTEN_PORT:-28080}/${NC}"
+fi
 echo -e "  注册口令      : ${YELLOW}${ENROLL_TOKEN:-(请查看配置文件)}${NC}"
 echo -e "  管理口令      : ${YELLOW}${ADMIN_TOKEN:-(请查看配置文件)}${NC}"
 echo -e "  配置文件      : ${CONFIG_FILE}"
