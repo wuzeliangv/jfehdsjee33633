@@ -2536,6 +2536,15 @@ def maintain_valid_nodes(force: bool = False, is_manual: bool = False) -> str:
                     
             for old_n in current_nodes:
                 if old_n.get("id") not in seen_ids:
+                    # 过滤上线时间超过 15 天 (1,296,000,000 毫秒) 的老旧节点，已入库的也在此阶段清除
+                    uptime_val = 0
+                    try:
+                        uptime_val = int(old_n.get("uptime") or 0)
+                    except (TypeError, ValueError):
+                        pass
+                    if uptime_val > 1296000000:
+                        continue
+                        
                     status = old_n.get("probe_status", "")
                     # 已测活的节点保留更久；待检测节点如果超过 72 小时没有在 API 中重新出现则清除
                     if status == "available":
