@@ -1892,15 +1892,34 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
                 n.update(updated_nodes_map[nid])
         
         # Exclude nodes that were tested and found to be unavailable (keep available, active, not_checked, or untested nodes)
-        current_nodes = [
-            n for n in current_nodes
-            if n.get("probe_status") == "available"
-            or n.get("active")
-            or n.get("probe_status") == "not_checked"
-            or n.get("id") not in updated_nodes_map
-        ]
-        
-        sorted_nodes = sort_all_nodes(current_nodes)
+        filtered_nodes = []
+        for n in current_nodes:
+            # 活跃节点无论延迟多少都必须保留以防断网
+            if n.get("active"):
+                filtered_nodes.append(n)
+                continue
+            
+            # 判断是否需要保留该节点
+            is_valid = False
+            if n.get("probe_status") == "available":
+                # 过滤测活成功但延迟超过 100ms 的节点
+                if (n.get("latency_ms") or 0) <= 100:
+                    is_valid = True
+            elif n.get("probe_status") == "not_checked" or n.get("id") not in updated_nodes_map:
+                is_valid = True
+                
+            if is_valid:
+                filtered_nodes.append(n)
+            else:
+                # 清理并物理删除不再保留的节点配置文件
+                config_file = n.get("config_file")
+                if config_file:
+                    try:
+                        os.remove(config_file)
+                    except Exception:
+                        pass
+
+        sorted_nodes = sort_all_nodes(filtered_nodes)
         write_json(NODES_FILE, sorted_nodes)
         
     return list(updated_nodes_map.values())
@@ -2762,12 +2781,23 @@ def check_old_nodes_health() -> None:
         new_nodes = []
         removed_count = 0
         for n in nodes:
+            # 活跃节点无论延迟多少都必须保留，防止当前连接断开
+            if n.get("active"):
+                new_nodes.append(n)
+                continue
+                
             nid = n.get("id")
             if nid in updated_status:
                 latency = updated_status[nid]
-                if latency <= 0:
+                if latency <= 0 or latency > 100:
                     removed_count += 1
-                    continue # Do not add to new_nodes (delete it)
+                    config_file = n.get("config_file")
+                    if config_file:
+                        try:
+                            os.remove(config_file)
+                        except Exception:
+                            pass
+                    continue
                 else:
                     n["latency_ms"] = latency
                     n["probed_at"] = time.time()
