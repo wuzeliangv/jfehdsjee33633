@@ -1086,6 +1086,12 @@
         <p id="view-subtitle">主控系统监控与节点池状态</p>
       </div>
       <div class="header-actions">
+        <button id="btn-upgrade-all" class="btn btn-ghost" onclick="upgradeAllAgents()" style="display: none; background: rgba(168, 85, 247, 0.05); border-color: rgba(168, 85, 247, 0.15); color: #c084fc; margin-right: 8px;">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3 3m0 0l3-3m-3 3V1" />
+          </svg>
+          一键升级全部网关
+        </button>
         <button class="btn btn-ghost" onclick="refresh()">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M9.554 11.33a1.554 1.554 0 01-1.554 1.554h0a1.554 1.554 0 01-1.554-1.554v0a1.554 1.554 0 011.554-1.554h0a1.554 1.554 0 011.554 1.554z" />
@@ -1334,6 +1340,13 @@
       document.getElementById(`pane-${viewId}`).classList.add('active');
       document.getElementById(`nav-${viewId}`).classList.add('active');
       
+      const btnUpgradeAll = document.getElementById('btn-upgrade-all');
+      if (viewId === 'gateways') {
+        btnUpgradeAll.style.display = 'inline-flex';
+      } else {
+        btnUpgradeAll.style.display = 'none';
+      }
+      
       const titleEl = document.getElementById('view-title');
       const subEl = document.getElementById('view-subtitle');
       
@@ -1512,6 +1525,8 @@
       const data = await fetchJSON("/admin/api/agents");
       if (!data.ok) return;
       
+      window.loadedAgents = data.agents || [];
+      
       const grid = document.getElementById("agents-grid");
       if (!data.agents || data.agents.length === 0) {
         grid.innerHTML = `<div class="glass" style="grid-column: 1/-1; padding: 48px; text-align: center; color: var(--text-sec);">网络中尚未有任何被控网关接入注册。</div>`;
@@ -1650,6 +1665,37 @@
       } catch (e) {
         toast("网络请求异常，操作失败", "err");
       }
+    }
+
+    async function upgradeAllAgents() {
+      const agents = window.loadedAgents || [];
+      if (agents.length === 0) {
+        toast("当前无网关被控端设备可以升级", "err");
+        return;
+      }
+      const ok = await customConfirm(`确认要下发【一键升级】指令给所有已注册的被控网关吗？\n（共 ${agents.length} 个设备将接收到升级指令，拉取新代码自检后自动重启）`);
+      if (!ok) return;
+      
+      let successCount = 0;
+      let failCount = 0;
+      toast("正在批量下发升级指令，请稍候...", "info");
+      
+      for (const a of agents) {
+        try {
+          const res = await fetchJSON(`/admin/api/agents/command`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ agent_id: a.agent_id, command: "upgrade" })
+          });
+          if (res.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (e) {
+          failCount++;
+        }
+      }
+      toast(`批量下发升级指令完成: ${successCount} 个成功, ${failCount} 个失败`, successCount > 0 ? "ok" : "err");
     }
 
     function colorizeLog(line) {
