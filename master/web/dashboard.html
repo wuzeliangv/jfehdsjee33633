@@ -1392,7 +1392,9 @@
     function customConfirm(text) {
       return new Promise(resolve => {
         const overlay = document.getElementById('confirm-overlay');
-        document.getElementById('confirm-text').textContent = text;
+        const textEl = document.getElementById('confirm-text');
+        textEl.style.whiteSpace = 'pre-line';
+        textEl.textContent = text;
         const btnCancel = document.getElementById('confirm-cancel');
         const btnOk = document.getElementById('confirm-ok');
         
@@ -1412,7 +1414,9 @@
     function customPrompt(text, defaultVal = '') {
       return new Promise(resolve => {
         const overlay = document.getElementById('prompt-overlay');
-        document.getElementById('prompt-text').textContent = text;
+        const textEl = document.getElementById('prompt-text');
+        textEl.style.whiteSpace = 'pre-line';
+        textEl.textContent = text;
         const input = document.getElementById('prompt-input');
         input.value = defaultVal;
         
