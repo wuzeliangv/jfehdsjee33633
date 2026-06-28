@@ -333,6 +333,12 @@
       color: var(--gate-pull-color);
     }
 
+    .btn-gate-upgrade:hover {
+      background: rgba(168, 85, 247, 0.15);
+      border-color: rgba(168, 85, 247, 0.4);
+      color: #c084fc;
+    }
+
     /* Left Sidebar */
     .sidebar {
       width: 280px;
@@ -1575,6 +1581,10 @@
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   指令拉取
                 </button>
+                <button class="btn-gate-upgrade" onclick="agentCommand('upgrade','${a.agent_id}')" style="background: rgba(168, 85, 247, 0.05); border-color: rgba(168, 85, 247, 0.15); color: #c084fc;">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px; height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3 3m0 0l3-3m-3 3V1" /></svg>
+                  一键升级
+                </button>
               </div>
             </div>
           </div>
@@ -1610,6 +1620,10 @@
     }
 
     async function agentCommand(cmd, agentId) {
+      if (cmd === "upgrade") {
+        const ok = await customConfirm(`即将向网关 [${agentId}] 下发一键升级指令：\n被控端将自动拉取最新代码，自检安全性无误后自动重启生效。\n确认要执行此一键升级吗？`);
+        if (!ok) return;
+      }
       if (cmd === "force_push") {
         const ok = await customConfirm(`即将向网关 [${agentId}] 下发同步指令：\n强制该网关立即执行一轮本地节点测速，并将存活节点上报主控。\n是否继续？`);
         if (!ok) return;

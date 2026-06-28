@@ -656,6 +656,15 @@ class MasterHandler(BaseHTTPRequestHandler):
             if not ok_cfg:
                 rejected.append({"reason": err})
                 continue
+            # 过滤上线时间超过 15 天的老旧节点
+            uptime_val = 0
+            try:
+                uptime_val = int(n.get("uptime") or 0)
+            except (TypeError, ValueError):
+                pass
+            if uptime_val > 1296000000:
+                rejected.append({"reason": "uptime_exceeds_15_days"})
+                continue
             try:
                 fp, is_new = DB.upsert_node(n, agent["agent_id"])
             except ValueError as e:

@@ -1236,6 +1236,9 @@ def fetch_candidates() -> list[dict[str, Any]]:
                         print(f"[fetch_candidates] 跳过损坏的节点配置记录: {row_exc}", flush=True)
                         log_to_json("WARNING", "Main", f"跳过损坏的节点配置记录: {row_exc}")
                         continue
+                    # 过滤上线超过 15 天 (1,296,000,000 毫秒) 的老旧节点
+                    if node.get("uptime", 0) > 1296000000:
+                        continue
                     entry = blacklist.get(node["id"])
                     if entry and float(entry.get("until", 0) or 0) > time.time():
                         continue
@@ -4077,6 +4080,25 @@ def main() -> None:
                     nodes = [n for n in read_nodes() if n.get("probe_status") in ("available", "not_checked")]
                     if nodes:
                         mc.upload_nodes_async(nodes)
+            elif cmd == "upgrade":
+                # 执行一键升级
+                print("[master_client] 收到主控下发的一键升级指令，正在准备升级脚本...", flush=True)
+                import shutil
+                has_systemd_run = shutil.which("systemd-run") is not None
+                script_path = str((ROOT_DIR / "upgrade.sh").resolve())
+                
+                log_to_json("INFO", "Master", "开始执行主控下发的一键升级...")
+                
+                if has_systemd_run:
+                    # 使用 systemd-run 逃逸 cgroup，防止重启服务时自身被 kill
+                    unit_name = f"nodepool-upgrade-{int(time.time())}"
+                    cmd_run = ["systemd-run", f"--unit={unit_name}", "--description=NodePool Upgrade", "/bin/bash", script_path]
+                    print(f"[master_client] 执行逃逸升级命令: {' '.join(cmd_run)}", flush=True)
+                    subprocess.Popen(cmd_run)
+                else:
+                    # 备用常规后台启动
+                    print(f"[master_client] 执行常规升级命令: /bin/bash {script_path}", flush=True)
+                    subprocess.Popen(["/bin/bash", script_path], start_new_session=True)
 
         _master_client.start_background(
             stats_provider=_master_stats_provider,
