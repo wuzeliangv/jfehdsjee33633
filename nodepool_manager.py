@@ -1658,6 +1658,7 @@ def sort_all_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     available_nodes = sorted(
         [n for n in nodes if n.get("probe_status") == "available" or n.get("active")],
         key=lambda n: (
+            1 if (parse_int(n.get("speed")) or 0) <= 0 else 0, # 无网速/网速为0的节点优先级降到最低
             0 if n.get("ip_type") in ("residential", "mobile") else 1,
             parse_int(n.get("latency_ms")) or 999999,
             -parse_int(n.get("score"))
@@ -1855,7 +1856,6 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
         }
         if ok:
             temp_node["fetched_at"] = time.time()
-        if tested_speed > 0:
             temp_node["speed"] = tested_speed
         return temp_node
 
@@ -2145,7 +2145,11 @@ def auto_switch_node(attempt: int = 0, excluded_ids: set[str] | None = None) -> 
         if is_fallback_untested:
             candidates.sort(key=lambda n: (-parse_int(n.get("score")), parse_int(n.get("ping")) or 999999))
         else:
-            candidates.sort(key=lambda n: (parse_int(n.get("latency_ms")) or 999999, -parse_int(n.get("score"))))
+            candidates.sort(key=lambda n: (
+                1 if (parse_int(n.get("speed")) or 0) <= 0 else 0, # 无网速/网速为0的节点优先级降到最低
+                parse_int(n.get("latency_ms")) or 999999,
+                -parse_int(n.get("score"))
+            ))
         
     if candidates:
         next_node = candidates[0]
