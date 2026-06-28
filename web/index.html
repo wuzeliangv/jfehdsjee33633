@@ -2497,6 +2497,10 @@ function render(){
         ? `<button class="connect-btn" disabled style="background: var(--success-gradient); color: white; cursor: default; opacity: 1;">已连接</button>`
         : `<button class="connect-btn" ${(isUnavailable || state.is_connecting) ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''} onclick="connectNode('${esc(n.id)}')">切换</button>`;
       
+      const deleteBtn = isCurrentlyActive
+        ? ''
+        : `<button class="connect-btn" style="background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.2); color: #f87171;" onclick="deleteNode('${esc(n.id)}', event)">删除</button>`;
+
       const timeAgoText = formatTimeAgo(n.last_connected_at);
       const historyBadge = timeAgoText ? `<span class="history-badge">${esc(timeAgoText)}</span>` : '';
 
@@ -2510,8 +2514,9 @@ function render(){
         <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${esc(formatUptime(n.uptime))}">${esc(formatUptime(n.uptime))}</td>
         <td style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
         <td>
-          <div class="table-actions">
+          <div class="table-actions" style="display: flex; gap: 6px;">
             ${connectBtn}
+            ${deleteBtn}
             ${historyBadge}
           </div>
         </td>
@@ -2601,6 +2606,31 @@ function startConnectionPolling() {
       load();
     }
   }, 1000);
+}
+
+async function deleteNode(id, event) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const ok = await showConfirm("确认删除节点？", "您确定要手动删除该节点及其本地配置文件吗？");
+  if (!ok) return;
+  
+  try {
+    const r = await fetch("./api/delete_node", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({id})
+    });
+    const result = await r.json();
+    if (result.ok) {
+      alert("节点删除成功");
+      load();
+    } else {
+      alert("删除失败: " + (result.error || "未知错误"));
+    }
+  } catch(e) {
+    alert("删除请求异常");
+  }
 }
 
 async function connectNode(id){

@@ -3836,6 +3836,31 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": True, "node": updated_node})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        elif effective_path == "/api/delete_node":
+            try:
+                payload = self.read_json_body()
+                node_id = str(payload.get("id") or "")
+                if not node_id:
+                    self.send_json({"ok": False, "error": "缺少节点 id 参数"})
+                    return
+                if node_id == active_openvpn_node_id:
+                    self.send_json({"ok": False, "error": "当前节点正在连接使用中，无法删除"})
+                    return
+                with lock:
+                    nodes = read_nodes()
+                    node_to_del = next((n for n in nodes if n.get("id") == node_id), None)
+                    if node_to_del:
+                        config_file = node_to_del.get("config_file")
+                        if config_file:
+                            try:
+                                os.remove(config_file)
+                            except Exception:
+                                pass
+                        nodes = [n for n in nodes if n.get("id") != node_id]
+                        write_json(NODES_FILE, nodes)
+                self.send_json({"ok": True, "message": "节点已成功删除"})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         elif effective_path == "/api/test_proxy":
             try:
                 self.read_request_body()
