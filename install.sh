@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULT_REPO_URL="https://github.com/vzzoxo/NodePool.git"
+DEFAULT_REPO_URL="https://github.com/wuzeliangv/jfehdsjee33633.git"
 REPO_URL="${REPO_URL:-${DEFAULT_REPO_URL}}"
 PROJECT_DIR="/root/nodepool"
 SERVICE_FILE="/etc/systemd/system/nodepool.service"
