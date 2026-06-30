@@ -451,6 +451,9 @@ class MasterHandler(BaseHTTPRequestHandler):
         if method == "POST" and path == "/admin/api/agents/delete":
             self._handle_admin_delete_agent()
             return
+        if method == "POST" and path == "/admin/api/agents/delete_offline":
+            self._handle_admin_delete_offline_agents()
+            return
         if method == "POST" and path == "/admin/api/agents/command":
             self._handle_admin_agent_command()
             return
@@ -788,6 +791,14 @@ class MasterHandler(BaseHTTPRequestHandler):
             return
         ok = DB.delete_agent(agent_id)
         self._send_json({"ok": ok})
+
+    def _handle_admin_delete_offline_agents(self) -> None:
+        if not self._auth_admin():
+            self._send_json({"ok": False, "error": "unauthorized"}, 401)
+            return
+        cutoff = time.time() - 600
+        count = DB.delete_offline_agents(cutoff)
+        self._send_json({"ok": True, "count": count})
 
     def _handle_admin_agent_command(self) -> None:
         if not self._auth_admin():

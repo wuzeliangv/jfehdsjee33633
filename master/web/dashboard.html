@@ -1092,6 +1092,12 @@
           </svg>
           一键升级全部网关
         </button>
+        <button id="btn-delete-offline" class="btn btn-ghost" onclick="deleteOfflineAgents()" style="display: none; background: rgba(239, 68, 68, 0.05); border-color: rgba(239, 68, 68, 0.15); color: #f87171; margin-right: 8px;">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          一键删除离线网关
+        </button>
         <button class="btn btn-ghost" onclick="refresh()">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M9.554 11.33a1.554 1.554 0 01-1.554 1.554h0a1.554 1.554 0 01-1.554-1.554v0a1.554 1.554 0 011.554-1.554h0a1.554 1.554 0 011.554 1.554z" />
@@ -1341,10 +1347,13 @@
       document.getElementById(`nav-${viewId}`).classList.add('active');
       
       const btnUpgradeAll = document.getElementById('btn-upgrade-all');
+      const btnDeleteOffline = document.getElementById('btn-delete-offline');
       if (viewId === 'gateways') {
         btnUpgradeAll.style.display = 'inline-flex';
+        btnDeleteOffline.style.display = 'inline-flex';
       } else {
         btnUpgradeAll.style.display = 'none';
+        btnDeleteOffline.style.display = 'none';
       }
       
       const titleEl = document.getElementById('view-title');
@@ -1700,6 +1709,34 @@
         }
       }
       toast(`批量下发升级指令完成: ${successCount} 个成功, ${failCount} 个失败`, successCount > 0 ? "ok" : "err");
+    }
+
+    async function deleteOfflineAgents() {
+      const offlineAgents = (window.loadedAgents || []).filter(a => {
+        const c = classifyAgent(a);
+        return c.txt === '离线';
+      });
+      
+      if (offlineAgents.length === 0) {
+        toast("当前无任何离线的被控网关设备", "info");
+        return;
+      }
+      
+      const ok = await customConfirm(`确认要【一键删除】所有已离线的网关设备吗？\n（当前有 ${offlineAgents.length} 个设备处于离线状态，删除后不可恢复）`);
+      if (!ok) return;
+      
+      try {
+        toast("正在删除离线网关设备，请稍候...", "info");
+        const res = await fetchJSON(`/admin/api/agents/delete_offline`, { method: "POST" });
+        if (res.ok) {
+          toast(`已成功删除 ${res.count || 0} 个离线网关设备`, "ok");
+          loadAgents();
+        } else {
+          toast("操作失败: " + (res.error || ""), "err");
+        }
+      } catch (e) {
+        toast("网络请求错误，操作失败", "err");
+      }
     }
 
     function colorizeLog(line) {

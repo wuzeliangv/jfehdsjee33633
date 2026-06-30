@@ -224,6 +224,14 @@ class MasterDB:
             )
         return cur.rowcount > 0
 
+    def delete_offline_agents(self, cutoff_time: float) -> int:
+        with self.lock:
+            cur = self.conn.execute(
+                "DELETE FROM agents WHERE last_seen IS NULL OR last_seen < ?",
+                (cutoff_time,)
+            )
+        return cur.rowcount
+
     def enqueue_command(self, agent_id: str, command: str) -> bool:
         with self.lock:
             try:
