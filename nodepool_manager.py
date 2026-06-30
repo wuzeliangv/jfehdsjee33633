@@ -452,6 +452,36 @@ def read_nodes() -> list[dict[str, Any]]:
     raw = read_json(NODES_FILE, [])
     if not isinstance(raw, list):
         return []
+    
+    # 动态填补与递增节点的运行/在线时间 (uptime)，消除显示为 - 的情况
+    now = time.time()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        
+        # 确保每个节点都有本地首次记录的时间戳，以作备用在线时间基准
+        if not item.get("first_seen_at"):
+            item["first_seen_at"] = float(item.get("fetched_at") or now)
+            
+        uptime_val = 0
+        try:
+            uptime_val = int(item.get("uptime") or 0)
+        except (TypeError, ValueError):
+            pass
+            
+        fetched_at_val = 0.0
+        try:
+            fetched_at_val = float(item.get("fetched_at") or 0)
+        except (TypeError, ValueError):
+            pass
+            
+        if uptime_val > 0 and fetched_at_val > 0:
+            elapsed_ms = int((now - fetched_at_val) * 1000)
+            item["uptime"] = uptime_val + max(0, elapsed_ms)
+        else:
+            first_seen_val = float(item.get("first_seen_at") or now)
+            item["uptime"] = int(max(0, now - first_seen_val) * 1000)
+
     # 读取时自动过滤已失效且非当前活跃连接的节点，保证内存与文件中的节点都是最新的
     return [item for item in raw if isinstance(item, dict) and (item.get("probe_status") != "unavailable" or item.get("active"))]
 
