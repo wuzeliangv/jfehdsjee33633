@@ -2017,6 +2017,10 @@ def master_fetch_and_test_country(country_zh: str, min_interval: float = 60.0) -
                 config_path.write_text(config_text, encoding="utf-8")
             except Exception:
                 pass
+            # 根据主控返回的首次收录时间计算在线时间(ms)
+            first_seen_val = float(rn.get("first_seen") or 0)
+            uptime_ms = int(max(0, time.time() - first_seen_val) * 1000) if first_seen_val > 0 else 0
+
             new_nodes.append(
                 {
                     "id": node_id,
@@ -2028,7 +2032,7 @@ def master_fetch_and_test_country(country_zh: str, min_interval: float = 60.0) -
                     "ping": parse_int(rn.get("handshake_ms")),
                     "speed": 0,
                     "sessions": 0,
-                    "uptime": 0,
+                    "uptime": uptime_ms,
                     "owner": "",
                     "asn": "",
                     "as_name": "",

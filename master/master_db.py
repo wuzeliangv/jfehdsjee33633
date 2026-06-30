@@ -387,7 +387,7 @@ class MasterDB:
             params.extend(exclude_fingerprints)
         sql = (
             "SELECT fingerprint, host, port, proto, ip, country, country_code, "
-            "       config_text, handshake_ms, score, last_probe_at "
+            "       config_text, handshake_ms, score, last_probe_at, first_seen "
             "FROM nodes WHERE " + " AND ".join(where) +
             " ORDER BY score DESC, COALESCE(handshake_ms, 999999) ASC LIMIT ?"
         )
