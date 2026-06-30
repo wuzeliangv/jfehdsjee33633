@@ -2020,7 +2020,7 @@ def master_fetch_and_test_country(country_zh: str, min_interval: float = 60.0) -
             flush=True,
         )
         remote_nodes = mc.query_nodes(
-            country_code, limit=200, exclude_fingerprints=existing_fps[:500]
+            country_code, limit=1000, exclude_fingerprints=existing_fps[:1000]
         )
         if not remote_nodes:
             print(f"[master_fetch] 主控池无 {country_zh} ({country_code}) 的活节点", flush=True)

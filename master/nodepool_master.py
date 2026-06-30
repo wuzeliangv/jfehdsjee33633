@@ -716,7 +716,7 @@ class MasterHandler(BaseHTTPRequestHandler):
             limit = int(qs.get("limit", ["100"])[0])
         except ValueError:
             limit = 100
-        limit = max(1, min(limit, 500))
+        limit = max(1, min(limit, 1000))
         exclude = qs.get("exclude_fingerprints", [""])[0]
         exclude_list = [f.strip() for f in (exclude.split(",") if exclude else []) if f.strip()]
         nodes = DB.query_nodes_for_agent(country or None, limit, exclude_list)

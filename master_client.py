@@ -330,7 +330,7 @@ class MasterClient:
         if not self.agent_id or not self.agent_token:
             if not self.register_if_needed():
                 return []
-        params: dict[str, Any] = {"limit": max(1, min(int(limit or 50), 500))}
+        params: dict[str, Any] = {"limit": max(1, min(int(limit or 50), 1000))}
         if country_code:
             params["country"] = country_code
         if exclude_fingerprints:
