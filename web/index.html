@@ -1066,9 +1066,9 @@
             <th style="width: 200px;">IP 地址 : 端口</th>
             <th>物理位置</th>
             <th>运营主体 / ISP</th>
-            <th style="width: 115px;">网速 / 带宽</th>
-            <th style="width: 110px;">测试延迟</th>
-            <th style="width: 120px;">上线时间</th>
+            <th id="th-speed" style="width: 115px; cursor: pointer; user-select: none;" onclick="toggleSort('speed')">网速 / 带宽 ⇅</th>
+            <th id="th-latency" style="width: 110px; cursor: pointer; user-select: none;" onclick="toggleSort('latency')">测试延迟 ⇅</th>
+            <th id="th-uptime" style="width: 120px; cursor: pointer; user-select: none;" onclick="toggleSort('uptime')">上线时间 ⇅</th>
             <th style="width: 110px;">IP 类型</th>
             <th style="width: 180px;">操作</th>
           </tr>
@@ -2278,10 +2278,28 @@ function updateCountryFilter() {
   }
 }
 
+let currentSortField = null;   // 'speed', 'latency', 'uptime'
+let currentSortOrder = 'desc';
+
+function toggleSort(field) {
+  if (currentSortField === field) {
+    currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+  } else {
+    currentSortField = field;
+    if (field === 'latency') {
+      currentSortOrder = 'asc';  // Latency default: low to high
+    } else {
+      currentSortOrder = 'desc'; // Speed & Uptime default: high to low
+    }
+  }
+  currentPage = 1;
+  render();
+}
+
 function getFilteredNodes() {
   const selectedCountry = $("country_filter").value;
   const selectedIpType = $("ip_type_filter").value;
-  return nodes.filter(n => {
+  let filtered = nodes.filter(n => {
     if (!n) return false;
     if (selectedCountry && translateCountry(n.country) !== selectedCountry) {
       return false;
@@ -2296,6 +2314,33 @@ function getFilteredNodes() {
     }
     return true;
   });
+
+  if (currentSortField) {
+    filtered.sort((a, b) => {
+      let valA = 0;
+      let valB = 0;
+
+      if (currentSortField === 'speed') {
+        valA = parseInt(a.speed) || 0;
+        valB = parseInt(b.speed) || 0;
+      } else if (currentSortField === 'latency') {
+        valA = parseInt(a.latency_ms) || (currentSortOrder === 'asc' ? 999999 : -999999);
+        valB = parseInt(b.latency_ms) || (currentSortOrder === 'asc' ? 999999 : -999999);
+      } else if (currentSortField === 'uptime') {
+        valA = parseInt(a.uptime) || 0;
+        valB = parseInt(b.uptime) || 0;
+      }
+
+      if (valA === valB) {
+        // Fallback to score
+        return (b.score || 0) - (a.score || 0);
+      }
+
+      return currentSortOrder === 'asc' ? valA - valB : valB - valA;
+    });
+  }
+
+  return filtered;
 }
 
 function stableSortNodes() {
@@ -2315,6 +2360,26 @@ function stableSortNodes() {
 function render(){
   const activeNodeId = state.active_openvpn_node_id;
   const activeNode = nodes.find(n => n && (n.active || n.id === activeNodeId));
+  
+  // 更新表格标题行的排序指示器 (▲ / ▼ / ⇅)
+  const cols = { 'speed': 'th-speed', 'latency': 'th-latency', 'uptime': 'th-uptime' };
+  for (const [f, id] of Object.entries(cols)) {
+    const el = $(id);
+    if (el) {
+      let baseText = "";
+      if (f === 'speed') baseText = "网速 / 带宽";
+      else if (f === 'latency') baseText = "测试延迟";
+      else if (f === 'uptime') baseText = "上线时间";
+      
+      if (currentSortField === f) {
+        el.innerHTML = `${baseText} ${currentSortOrder === 'asc' ? '▲' : '▼'}`;
+        el.style.color = "var(--primary)";
+      } else {
+        el.innerHTML = `${baseText} ⇅`;
+        el.style.color = "";
+      }
+    }
+  }
   
   // Update last update time text
   const lastUpdateContainer = $("last_update_time");
