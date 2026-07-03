@@ -3526,14 +3526,12 @@ class Handler(BaseHTTPRequestHandler):
                     with lock:
                         active_sessions[token] = time.time() + 30 * 24 * 3600
                         save_sessions(active_sessions)
-                    body = json.dumps({"ok": True}).encode("utf-8")
+                    body = json.dumps({"ok": True, "token": token}).encode("utf-8")
                     self.send_response(HTTPStatus.OK)
                     self.send_header("Content-Type", "application/json; charset=utf-8")
                     self.send_header("Content-Length", str(len(body)))
                     self.send_header("Cache-Control", "no-store")
-                    secret_path = self.get_secret_path()
-                    cookie_path = f"/{secret_path}/" if secret_path else "/"
-                    self.send_header("Set-Cookie", f"session={token}; Path={cookie_path}; HttpOnly; SameSite=Lax; Max-Age=2592000")
+                    self.send_header("Set-Cookie", f"session={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000")
                     self.end_headers()
                     self.wfile.write(body)
                 else:
@@ -3561,14 +3559,12 @@ class Handler(BaseHTTPRequestHandler):
                     with lock:
                         active_sessions.pop(session_token, None)
                         save_sessions(active_sessions)
-                secret_path = self.get_secret_path()
-                cookie_path = f"/{secret_path}/" if secret_path else "/"
                 body = json.dumps({"ok": True}).encode("utf-8")
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "no-store")
-                self.send_header("Set-Cookie", f"session=; Path={cookie_path}; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+                self.send_header("Set-Cookie", f"session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
                 self.end_headers()
                 self.wfile.write(body)
             except Exception as exc:

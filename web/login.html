@@ -332,6 +332,9 @@
 
         const data = await response.json();
         if (response.ok && data.ok) {
+          if (data.token) {
+            document.cookie = `session=${data.token}; Path=/; Max-Age=2592000; SameSite=Lax`;
+          }
           window.location.reload();
         } else {
           errorText.textContent = data.error || "账号或密码不正确，请重新输入";
