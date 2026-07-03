@@ -3477,10 +3477,17 @@ class Handler(BaseHTTPRequestHandler):
                 input_pwd = str(payload.get("password") or "")
                 input_uname = str(payload.get("username") or "")
 
-                # 取客户端 IP 用于失败限速
+                # 取客户端 IP 用于失败限速，兼容反向代理
                 client_ip = ""
                 try:
-                    client_ip = self.client_address[0] if self.client_address else ""
+                    xff = self.headers.get("X-Forwarded-For", "")
+                    if xff:
+                        client_ip = xff.split(",")[0].strip()
+                    else:
+                        client_ip = self.headers.get("X-Real-IP", "")
+                    
+                    if not client_ip:
+                        client_ip = self.client_address[0] if self.client_address else ""
                 except Exception:
                     client_ip = ""
 
