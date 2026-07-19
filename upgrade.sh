@@ -1,109 +1,172 @@
 #!/usr/bin/env bash
-# nodepool-gateway 自动升级脚本(支持回滚 + 动态分支检测)
+# ==============================================================================
+# NodePool Gateway & Master 一键升级脚本 (支持强回滚与动态分支识别)
+# ==============================================================================
 
 set -euo pipefail
 
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-echo -e "${YELLOW}[开始升级] 正在获取最新代码并重启服务...${NC}"
-
-# 确保在项目根目录
-if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ── 颜色定义 ──────────────────────────────────────────────────
+if [ -t 1 ]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[1;33m'
+  BLUE='\033[0;34m'
+  PURPLE='\033[0;35m'
+  CYAN='\033[0;36m'
+  BOLD='\033[1m'
+  NC='\033[0m'
 else
-    SCRIPT_DIR="/root/nodepool"
+  RED=''; GREEN=''; YELLOW=''; BLUE=''; PURPLE=''; CYAN=''; BOLD=''; NC=''
 fi
+
+log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[OK]${NC}   $1"; }
+log_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
+
+show_banner() {
+  echo -e "${CYAN}"
+  echo "┌────────────────────────────────────────────────────┐"
+  echo "│              NodePool 自动升级与版本回滚           │"
+  echo "└────────────────────────────────────────────────────┘"
+  echo -e "${NC}"
+}
+
+show_banner
+log_info "正在初始化升级检查环境..."
+
+# ── 定位工作目录 ──────────────────────────────────────────────
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+  SCRIPT_DIR="/root/NodePool"
+fi
+
 cd "$SCRIPT_DIR"
 
-# 检查当前是否为 git 仓库
 if [ ! -d ".git" ]; then
-    echo -e "${RED}[错误] 当前目录不是 Git 仓库，无法通过 git pull 升级！${NC}"
-    exit 1
+  log_error "当前目录 [${SCRIPT_DIR}] 不是 Git 仓库，无法在线拉取更新！"
+  exit 1
 fi
 
-# 1) 记录当前 commit,失败时用于回滚
+# ── 记录升级前的 Revision (用于失败时强回滚) ─────────────────
 OLD_REV="$(git rev-parse HEAD 2>/dev/null || echo "")"
 if [ -z "${OLD_REV}" ]; then
-    echo -e "${RED}[错误] 无法获取当前 HEAD,升级中止。${NC}"
-    exit 1
+  log_error "无法读取当前 Git HEAD 版本号，升级中止。"
+  exit 1
 fi
 
-# 2) 动态识别远端默认分支(支持 main / master 等)
-echo -e "${YELLOW}[1/4] 正在从 Git 仓库拉取最新更改...${NC}"
-git fetch --all --prune
+log_info "当前代码版本: ${PURPLE}${OLD_REV:0:8}${NC}"
 
+# ── 1. 从 Git 远程拉取最新提交 ─────────────────────────────────
+log_info "[1/4] 正在拉取远端最新代码变更..."
+git fetch --all --prune >/dev/null 2>&1 || {
+  log_warning "git fetch 失败，尝试继续使用现有分支连接..."
+}
+
+# 动态识别远端默认分支 (main / master)
 DEFAULT_BRANCH="$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed -e 's@^refs/remotes/origin/@@' || true)"
 if [ -z "${DEFAULT_BRANCH}" ]; then
-    # 兜底:尝试 main / master
-    if git rev-parse --verify --quiet "origin/main" >/dev/null; then
-        DEFAULT_BRANCH="main"
-    elif git rev-parse --verify --quiet "origin/master" >/dev/null; then
-        DEFAULT_BRANCH="master"
-    else
-        echo -e "${RED}[错误] 无法识别远端默认分支(尝试过 main 与 master)。${NC}"
-        exit 1
-    fi
+  if git rev-parse --verify --quiet "origin/main" >/dev/null; then
+    DEFAULT_BRANCH="main"
+  elif git rev-parse --verify --quiet "origin/master" >/dev/null; then
+    DEFAULT_BRANCH="master"
+  else
+    log_error "无法自动定位远端主分支 (origin/main 或 origin/master)。"
+    exit 1
+  fi
 fi
-echo -e "${YELLOW}    远端默认分支: origin/${DEFAULT_BRANCH}${NC}"
 
-# 3) 强制重置到远端最新(此动作会丢弃所有本地未提交修改)
+log_info "识别远端主分支为: ${CYAN}origin/${DEFAULT_BRANCH}${NC}"
+
+# 检测是否启用了精简无入站模式 (DISABLE_XRAY=true)
 DISABLE_XRAY_ACTIVE=false
 if [ -f "/etc/systemd/system/nodepool.service" ]; then
-    if grep -q "Environment=DISABLE_XRAY=true" /etc/systemd/system/nodepool.service; then
-        DISABLE_XRAY_ACTIVE=true
-    fi
+  if grep -q "Environment=DISABLE_XRAY=true" /etc/systemd/system/nodepool.service 2>/dev/null; then
+    DISABLE_XRAY_ACTIVE=true
+  fi
 fi
 
-git reset --hard "origin/${DEFAULT_BRANCH}"
+# 强行重置到最新分支内容
+git reset --hard "origin/${DEFAULT_BRANCH}" >/dev/null
 
 if [ "$DISABLE_XRAY_ACTIVE" = "true" ]; then
-    echo -e "${YELLOW}    检测到当前处于精简模式，正在清理恢复的 xray 内核...${NC}"
-    rm -rf "${SCRIPT_DIR}/xray"
+  log_info "检测到当前处于精简无入站模式，正二次清理强拉恢复的 xray 内核..."
+  rm -rf "${SCRIPT_DIR}/xray"
 fi
 
 NEW_REV="$(git rev-parse HEAD 2>/dev/null || echo "")"
 
-# 回滚函数,语法检查或服务启动失败时调用
+# ── 回滚函数 ──────────────────────────────────────────────────
 rollback() {
-    echo -e "${RED}[回滚] 正在恢复到旧版本 ${OLD_REV:0:8} ...${NC}"
-    git reset --hard "${OLD_REV}" || true
+  log_warning "[回滚] 正在恢复代码至旧版本 ${PURPLE}${OLD_REV:0:8}${NC} ..."
+  git reset --hard "${OLD_REV}" >/dev/null 2>&1 || true
 }
 
-# 4) 全量语法检查(compileall),覆盖项目内所有 .py 文件
-echo -e "${YELLOW}[2/4] 正在对所有 Python 代码进行语法安全性检查...${NC}"
+# ── 2. 全量 Python 语法安全性检查 ──────────────────────────────
+log_info "[2/4] 正在对代码库执行全量 Python 语法安全编译校验..."
 if ! python3 -m compileall -q -x '/\.' . ; then
-    echo -e "${RED}[错误] 新版本存在语法错误,即将回滚。${NC}"
-    rollback
-    exit 1
+  log_error "最新代码库存在 Python 语法或编译错误，触发自动降级回滚！"
+  rollback
+  exit 1
 fi
-echo -e "${GREEN}    语法检查通过${NC}"
+log_success "Python 语法安全校验通过。"
 
-# 5) 重启服务
-echo -e "${YELLOW}[3/4] 正在重启 nodepool.service 服务...${NC}"
-if [ -f "/etc/systemd/system/nodepool.service" ] || systemctl list-unit-files 2>/dev/null | grep -q "nodepool.service"; then
-    if ! systemctl restart nodepool.service; then
-        echo -e "${RED}[错误] systemctl restart 失败,即将回滚并尝试重启旧版本。${NC}"
-        rollback
-        systemctl restart nodepool.service || true
-        exit 1
-    fi
-    # 给服务一点稳定时间
-    sleep 3
+# ── 3. 重启相关 Systemd 服务 ─────────────────────────────────
+log_info "[3/4] 正在检测并重启 NodePool 相关的后台守护服务..."
+
+RESTART_FAILED=false
+
+# 重启 Agent 被控服务
+if systemctl is-active nodepool.service >/dev/null 2>&1 || [ -f "/etc/systemd/system/nodepool.service" ]; then
+  log_info "正在重启 ${CYAN}nodepool.service${NC} (被控端网关)..."
+  if systemctl restart nodepool.service; then
+    sleep 2
     if systemctl is-active nodepool.service >/dev/null 2>&1; then
-        echo -e "${GREEN}[4/4] 服务重启完成,当前状态为:活动中 (active)。${NC}"
+      log_success "nodepool.service 重启成功，运行正常。"
     else
-        echo -e "${RED}[错误] 服务启动失败,即将回滚到旧版本。${NC}"
-        journalctl -u nodepool.service -n 30 --no-pager || true
-        rollback
-        systemctl restart nodepool.service || true
-        exit 1
+      log_error "nodepool.service 重启后未能正常保持 Active 状态！"
+      journalctl -u nodepool.service -n 25 --no-pager || true
+      RESTART_FAILED=true
     fi
-else
-    echo -e "${YELLOW}[提示] 未检测到 systemd 服务 (nodepool.service),可能为手动启动模式,请手动重启 Python 进程。${NC}"
+  else
+    log_error "systemctl restart nodepool.service 命令执行失败！"
+    RESTART_FAILED=true
+  fi
 fi
 
-echo -e "${GREEN}[完成] 升级成功! ${OLD_REV:0:8} -> ${NEW_REV:0:8}${NC}"
+# 重启 Master 主控服务
+if systemctl is-active nodepool-master.service >/dev/null 2>&1 || [ -f "/etc/systemd/system/nodepool-master.service" ]; then
+  log_info "正在重启 ${CYAN}nodepool-master.service${NC} (主控端)..."
+  if systemctl restart nodepool-master.service; then
+    sleep 2
+    if systemctl is-active nodepool-master.service >/dev/null 2>&1; then
+      log_success "nodepool-master.service 重启成功，运行正常。"
+    else
+      log_error "nodepool-master.service 重启后未能正常保持 Active 状态！"
+      journalctl -u nodepool-master.service -n 25 --no-pager || true
+      RESTART_FAILED=true
+    fi
+  else
+    log_error "systemctl restart nodepool-master.service 命令执行失败！"
+    RESTART_FAILED=true
+  fi
+fi
+
+if [ "$RESTART_FAILED" = "true" ]; then
+  log_error "[回滚触发] 新版本服务启动失败，正在将代码回滚回 ${OLD_REV:0:8} 并尝试恢复服务..."
+  rollback
+  systemctl restart nodepool.service >/dev/null 2>&1 || true
+  systemctl restart nodepool-master.service >/dev/null 2>&1 || true
+  exit 1
+fi
+
+log_info "[4/4] 服务与运行校验全部完成。"
+
+echo ""
+echo -e "${GREEN}┌────────────────────────────────────────────────────┐${NC}"
+echo -e "${GREEN}│             NodePool 系统升级成功！                │${NC}"
+echo -e "${GREEN}└────────────────────────────────────────────────────┘${NC}"
+echo -e "  版本变动: ${PURPLE}${OLD_REV:0:8}${NC} -> ${GREEN}${NEW_REV:0:8}${NC}"
+echo -e "  代码目录: ${CYAN}${SCRIPT_DIR}${NC}"
+echo ""

@@ -1,28 +1,33 @@
 #!/usr/bin/env bash
-# NodePool 统一安装入口 - 交互式选择"主控端"或"被控端"
+# ============================================================================
+# NodePool 统一安装入口 — 交互式选择「主控端」或「被控端」
+# ============================================================================
 #
 # 用法:
-#   一键远程安装(自动克隆代码):
+#   一键远程安装（自动克隆代码）:
 #     bash <(curl -fsSL https://raw.githubusercontent.com/wuzeliangv/jfehdsjee33633/main/setup.sh)
 #
-#   本地安装(已克隆代码,在项目根目录):
+#   本地安装（已克隆代码，在项目根目录）:
 #     sudo ./setup.sh
 #
-#   非交互(脚本/CI):
-#     sudo ./setup.sh --role=agent    # 安装被控端
-#     sudo ./setup.sh --role=master   # 安装主控端
+#   非交互模式（脚本 / CI）:
+#     sudo ./setup.sh --role=agent          # 安装被控端（完整版）
+#     sudo ./setup.sh --role=agent_no_xray  # 安装被控端（精简无入站版）
+#     sudo ./setup.sh --role=master         # 安装主控端
 #
-#   覆盖仓库 URL(用自己的 fork):
+#   覆盖仓库 URL（使用自己的 fork）:
 #     REPO_URL="https://github.com/youruser/NodePool.git" \
 #       bash <(curl -fsSL https://raw.githubusercontent.com/youruser/NodePool/main/setup.sh)
+# ============================================================================
 
 set -euo pipefail
 
+# ── 常量定义 ────────────────────────────────────────────────────────────────
 DEFAULT_REPO_URL="https://github.com/wuzeliangv/jfehdsjee33633.git"
 REPO_URL="${REPO_URL:-${DEFAULT_REPO_URL}}"
 DEFAULT_INSTALL_DIR="/root/NodePool"
 
-# ── 配色 ──────────────────────────────────────────────────
+# ── 终端配色（非 TTY 时自动禁用颜色） ──────────────────────────────────────
 if [ -t 1 ]; then
   RED='\033[0;31m'
   GREEN='\033[0;32m'
@@ -33,15 +38,16 @@ if [ -t 1 ]; then
   BOLD='\033[1m'
   NC='\033[0m'
 else
-  RED=''; GREEN=''; YELLOW=''; BLUE=''; PURPLE=''; CYAN=''; BOLD=''; NC=''
+  RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' NC=''
 fi
 
-log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[OK]${NC}   $1"; }
-log_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+# ── 日志函数 ────────────────────────────────────────────────────────────────
+log_info()    { echo -e "${BLUE}[INFO]${NC}  $1"; }
+log_success() { echo -e "${GREEN}[ OK ]${NC}  $1"; }
+log_warning() { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# ── 参数解析 ──────────────────────────────────────────────
+# ── 参数解析 ────────────────────────────────────────────────────────────────
 ROLE=""
 for arg in "$@"; do
   case "$arg" in
@@ -49,60 +55,67 @@ for arg in "$@"; do
       ROLE="${arg#--role=}"
       ;;
     -h|--help)
-      sed -n '2,20p' "$0"
+      sed -n '2,24p' "$0"
       exit 0
       ;;
     *)
-      log_warning "未知参数: $arg(已忽略)"
+      log_warning "未知参数: $arg（已忽略）"
       ;;
   esac
 done
 
-# ── root 检查 ─────────────────────────────────────────────
+# ── Root 权限检查 ──────────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
   log_error "请使用 root 权限运行本脚本"
   exit 1
 fi
 
-# ── Banner ────────────────────────────────────────────────
+# ── Banner ──────────────────────────────────────────────────────────────────
 show_banner() {
-  echo -e "${CYAN}"
-  echo "┌────────────────────────────────────────────────────┐"
-  echo "│            NodePool 分布式部署一键脚本              │"
-  echo "│          1 个主控  +  N 个被控,组成节点池          │"
-  echo "└────────────────────────────────────────────────────┘"
-  echo -e "${NC}"
+  echo ""
+  echo -e "${CYAN}╔══════════════════════════════════════════════════════╗${NC}"
+  echo -e "${CYAN}║                                                      ║${NC}"
+  echo -e "${CYAN}║        ${BOLD}NodePool 分布式部署一键安装脚本${NC}${CYAN}              ║${NC}"
+  echo -e "${CYAN}║      1 个主控  +  N 个被控，组成高可用节点池         ║${NC}"
+  echo -e "${CYAN}║                                                      ║${NC}"
+  echo -e "${CYAN}╚══════════════════════════════════════════════════════╝${NC}"
+  echo ""
 }
 show_banner
 
-# ── 定位/克隆项目代码 ─────────────────────────────────────
+# ── 定位 / 克隆项目代码 ────────────────────────────────────────────────────
 SCRIPT_DIR=""
 if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 
 PROJECT_DIR=""
-# 情况 1:脚本就在项目根目录(同时存在 install.sh 与 master/install_master.sh)
+
+# 情况 1：脚本就在项目根目录（同时存在 install.sh 与 master/install_master.sh）
 if [ -n "$SCRIPT_DIR" ] \
    && [ -f "$SCRIPT_DIR/install.sh" ] \
    && [ -f "$SCRIPT_DIR/master/install_master.sh" ]; then
   PROJECT_DIR="$SCRIPT_DIR"
 fi
 
-# 情况 2:默认安装目录已存在且是 git 仓库
+# 情况 2：默认安装目录已存在且是 git 仓库 —— 拉取最新代码
 if [ -z "$PROJECT_DIR" ] && [ -d "${DEFAULT_INSTALL_DIR}/.git" ]; then
   PROJECT_DIR="$DEFAULT_INSTALL_DIR"
-  log_info "检测到已存在的项目目录: ${PROJECT_DIR},正在同步最新代码..."
+  log_info "检测到已存在的项目目录: ${PROJECT_DIR}，正在同步最新代码..."
   git -C "${PROJECT_DIR}" fetch --all --prune >/dev/null 2>&1 || true
-  # 动态识别远端默认分支
-  DEFAULT_BRANCH="$(git -C "${PROJECT_DIR}" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed -e 's@^refs/remotes/origin/@@' || true)"
+
+  # 动态识别远端默认分支（兼容 main / master）
+  DEFAULT_BRANCH="$(git -C "${PROJECT_DIR}" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null \
+    | sed -e 's@^refs/remotes/origin/@@' || true)"
   [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH="main"
+
   git -C "${PROJECT_DIR}" pull -q --ff-only "origin" "$DEFAULT_BRANCH" || \
-    log_warning "git pull 失败,继续使用本地版本"
+    log_warning "git pull 失败，继续使用本地版本"
 fi
 
-# 情况 3:本地没代码,远程克隆
+# 情况 3：本地没有代码，从远程克隆
 if [ -z "$PROJECT_DIR" ]; then
+  # 确保 git 可用
   if ! command -v git >/dev/null 2>&1; then
     log_info "正在安装 git..."
     if command -v apt-get >/dev/null 2>&1; then
@@ -114,58 +127,63 @@ if [ -z "$PROJECT_DIR" ]; then
     elif command -v apk >/dev/null 2>&1; then
       apk add --no-cache git >/dev/null
     else
-      log_error "未识别的包管理器,请手动安装 git 后重试"
+      log_error "未识别的包管理器，请手动安装 git 后重试"
       exit 1
     fi
   fi
+
   PROJECT_DIR="$DEFAULT_INSTALL_DIR"
   log_info "正在克隆项目: ${REPO_URL} -> ${PROJECT_DIR}"
+
   if [ -e "$PROJECT_DIR" ] && [ ! -d "$PROJECT_DIR/.git" ]; then
-    log_error "目录已存在但不是 git 仓库: ${PROJECT_DIR},请手动处理后重试"
+    log_error "目录已存在但不是 git 仓库: ${PROJECT_DIR}，请手动处理后重试"
     exit 1
   fi
+
   git clone -q "${REPO_URL}" "${PROJECT_DIR}"
 fi
 
-# 二次校验
+# 二次校验：确保关键文件存在
 if [ ! -f "$PROJECT_DIR/install.sh" ] || [ ! -f "$PROJECT_DIR/master/install_master.sh" ]; then
-  log_error "项目结构不完整,缺少 install.sh 或 master/install_master.sh"
+  log_error "项目结构不完整，缺少 install.sh 或 master/install_master.sh"
   log_error "项目目录: $PROJECT_DIR"
   exit 1
 fi
 
-# ── 角色选择 ──────────────────────────────────────────────
+# ── 交互式角色选择菜单 ─────────────────────────────────────────────────────
 choose_role() {
-  echo
-  echo -e "${BOLD}请选择要安装的角色:${NC}"
-  echo
+  echo ""
+  echo -e "${BOLD}请选择要安装的角色：${NC}"
+  echo ""
   echo -e "  ${PURPLE}1)${NC} ${BOLD}主控端 (Master)${NC}"
-  echo -e "     · 聚合所有被控上传的节点,L1+L2 并发测活"
+  echo -e "     · 聚合所有被控上传的节点，L1+L2 并发测活"
   echo -e "     · 给被控网关按需下发节点列表"
   echo -e "     · 提供 Web Dashboard 管理面板 (默认端口 28080)"
-  echo
+  echo ""
   echo -e "  ${CYAN}2)${NC} ${BOLD}被控网关端 - 完整版 (Agent with Inbound Management)${NC}"
   echo -e "     · 拉取 OpenVPN 节点 + 本地测速 + 本地代理出口"
   echo -e "     · 包含入站管理功能 (内置 Xray，支持创建 SOCKS5/VLESS 共享节点)"
   echo -e "     · 提供网关 Web 管理面板"
-  echo
+  echo ""
   echo -e "  ${CYAN}3)${NC} ${BOLD}被控网关端 - 精简无入站版 (Agent without Inbound Management)${NC}"
   echo -e "     · 纯净被控网关功能，移除了 Xray 入站管理与共享相关组件"
   echo -e "     · 仅保留 OpenVPN 网关代理出口核心功能，大幅降低内存和系统消耗"
   echo -e "     · 提供网关 Web 管理面板"
-  echo
+  echo ""
   echo -e "  ${YELLOW}q)${NC} 退出"
-  echo
+  echo ""
 }
 
 if [ -z "$ROLE" ]; then
-  # 判断真实可交互性:能否真的打开 /dev/tty(stdin 可能是 pipe,但 /dev/tty 可能是真终端)
+  # 判断真实可交互性：能否打开 /dev/tty（stdin 可能是 pipe，但 /dev/tty 可能是真终端）
   TTY_READABLE=0
   if (exec 3</dev/tty) 2>/dev/null; then
     TTY_READABLE=1
   fi
+
   while true; do
     choose_role
+
     if [ "$TTY_READABLE" -eq 1 ]; then
       if ! read -rp "$(echo -e ${BOLD}'输入选项 [1/2/3/q]: '${NC})" CHOICE </dev/tty; then
         CHOICE="__EOF__"
@@ -175,22 +193,23 @@ if [ -z "$ROLE" ]; then
         CHOICE="__EOF__"
       fi
     fi
+
     case "${CHOICE:-}" in
-      1|master|Master|MASTER) ROLE="master"; break ;;
-      2|agent|Agent|AGENT) ROLE="agent"; break ;;
-      3|agent_no_xray) ROLE="agent_no_xray"; break ;;
-      q|Q|quit|exit) echo "已取消"; exit 0 ;;
+      1|master|Master|MASTER)     ROLE="master";        break ;;
+      2|agent|Agent|AGENT)        ROLE="agent";         break ;;
+      3|agent_no_xray)            ROLE="agent_no_xray"; break ;;
+      q|Q|quit|exit)              echo "已取消";        exit 0 ;;
       __EOF__)
-        log_error "无法读取输入(stdin 已结束),请使用 --role=master, --role=agent 或 --role=agent_no_xray"
+        log_error "无法读取输入（stdin 已结束），请使用 --role=master, --role=agent 或 --role=agent_no_xray"
         exit 1
         ;;
-      "") log_warning "请输入选项" ;;
-      *) log_warning "无效选项: ${CHOICE},请重新输入" ;;
+      "")  log_warning "请输入选项" ;;
+      *)   log_warning "无效选项: ${CHOICE}，请重新输入" ;;
     esac
   done
 fi
 
-# ── 调用对应子脚本 ────────────────────────────────────────
+# ── 调用对应子安装脚本 ─────────────────────────────────────────────────────
 case "$ROLE" in
   master)
     log_info "即将安装【主控端 Master】到 ${PROJECT_DIR}/master"
